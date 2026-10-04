@@ -1,0 +1,12 @@
+import {readdir,readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+const paths=await readdir('dist',{recursive:true});
+const assets=paths.filter(p=>/\.(js|css|woff2|png|svg|webmanifest|html)$/.test(p)&&p!=='sw.js').map(p=>'/'+p);
+const hash=createHash('sha256');for(const p of assets)hash.update(await readFile('dist'+p));
+const version='orbita-'+hash.digest('hex').slice(0,12);
+await writeFile('dist/sw.js',`const CACHE=${JSON.stringify(version)};const ASSETS=${JSON.stringify(assets)};
+self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
+self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('orbita-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
+self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;if(event.request.mode==='navigate'){event.respondWith(fetch(event.request).catch(()=>caches.match('/index.html')));return;}event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request)));});
+`);
+console.log('PWA: '+assets.length+' assets precached; private API is never cached.');
