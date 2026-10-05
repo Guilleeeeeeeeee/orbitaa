@@ -1,14 +1,24 @@
 // Confirmed visits. No visit dates or individual town visits are inferred.
+export const placeMemories = {
+  'visited-barcelona-sitges': {dateLabel:'Toda la vida',note:'Pues donde siempre (+ HYPE).',photo:'barcelona'},
+  'visited-andorra': {dateLabel:'septiembre',note:'Día número 1 del año (99% insuperable.',photo:'andorra'},
+  'visited-laurentis': {dateLabel:'Agosto',note:'Viaje extremisimo con clima de National Geografic (encima el primero, vaya bomba).',photo:'laurentis'}
+};
+export const memoryPhotos = {
+  barcelona: {src:'',alt:'Fitness 19, nuestro sitio en Barcelona'},
+  andorra: {src:'',alt:'El hotel del recuerdo de Andorra'},
+  laurentis: {src:'',alt:'Una vaca junto al lago entre las montañas'}
+};
 export const atlasPlaces = [
   {id:'visited-barcelona-sitges',name:'Barcelona',country:'España',lat:41.284,lng:1.978,date:'',note:'Zona costera de Barcelona visitada. La superficie coloreada representa de forma aproximada la zona indicada, no un límite administrativo.'},
   {id:'visited-andorra',name:'Andorra',country:'Andorra',lat:42.546,lng:1.601,date:'',note:'Andorra, territorio visitado.'},
   {id:'visited-laurentis',name:'Lago Laurentis',country:'Francia',lat:42.67424,lng:2.02562,date:'',note:'Entorno del lago Laurenti, en el Donezan (Pirineo francés). La superficie coloreada es una zona aproximada alrededor del lago, no el perímetro del agua.'}
 ];
 export function withConfirmedVisits(state) {
-  if(state.atlasVersion>=2)return state;
+  if(state.atlasVersion>=3)return state;
   const places=state.places.map(p=>p.id==='visited-barcelona-sitges'?{...p,name:'Barcelona',note:p.note.startsWith('Zona visitada entre Barcelona y Sitges.')?atlasPlaces[0].note:p.note}:p);
   const additions=state.atlasVersion>=1?atlasPlaces.slice(2):atlasPlaces;
-  return {...state,atlasVersion:2,places:[...places,...additions.filter(p=>!places.some(x=>x.id===p.id||x.name.toLowerCase()===p.name.toLowerCase())).map(p=>({...p}))]};
+  return {...state,atlasVersion:3,places:[...places,...additions.filter(p=>!places.some(x=>x.id===p.id||x.name.toLowerCase()===p.name.toLowerCase())).map(p=>({...p}))].map(p=>placeMemories[p.id]?{...p,...placeMemories[p.id]}:p)};
 }
 // Deliberately approximate visited areas; Andorra uses the atlas country boundary.
 export const visitedAreas = {

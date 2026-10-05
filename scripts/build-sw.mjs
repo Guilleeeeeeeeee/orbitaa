@@ -1,7 +1,7 @@
 import {readdir,readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 const paths=await readdir('dist',{recursive:true});
-const assets=paths.filter(p=>/\.(js|css|woff2|png|svg|webmanifest|html)$/.test(p)&&p!=='sw.js').map(p=>'/'+p);
+const assets=paths.filter(p=>/\.(js|css|woff2|png|webp|svg|webmanifest|html)$/.test(p)&&p!=='sw.js').map(p=>'/'+p);
 const hash=createHash('sha256');for(const p of assets)hash.update(await readFile('dist'+p));
 const version='jp7-'+hash.digest('hex').slice(0,12);
 await writeFile('dist/sw.js',`const CACHE=${JSON.stringify(version)};const ASSETS=${JSON.stringify(assets)};

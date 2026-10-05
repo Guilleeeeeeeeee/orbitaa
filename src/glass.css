@@ -305,3 +305,6 @@ input::placeholder, textarea::placeholder { color: #a18ba9; }
 .login-mark { display: flex; align-items: center; justify-content: center; }
 .login-mark img { width: min(420px, 78%); height: auto; border-radius: 40px; box-shadow: 0 25px 100px #ff47b71c; }
 @media (max-width: 760px) { .login-mark { display: none; } }
+.place-detail-photo { display: block; width: 100%; max-height: 55vh; height: auto; object-fit: contain; margin: 20px 0; border-radius: 18px; background: #100b15; border: 1px solid #ffffff14; }
+.place-note { line-height: 1.7; }
+@media (max-width: 600px) { .place-detail-photo { max-height: 48vh; border-radius: 14px; } }
