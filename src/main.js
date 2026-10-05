@@ -1,6 +1,7 @@
 import '@fontsource-variable/dm-sans/index.css';
 import '@fontsource-variable/manrope/index.css';
 import './style.css';
+import './glass.css';
 import {createIcons, Globe2, Orbit, CalendarCheck2, ListTodo, BookOpen, ChartNoAxesCombined, Plus, X, Check, ChevronLeft, ChevronRight, ArrowUpRight, MapPin, Settings2, LocateFixed, Minus, Activity, Droplets, Moon, Footprints, Target, Trash2, LogOut, Download, LockKeyhole, RefreshCw, WifiOff, CircleHelp, Sparkles, Pencil, Flag} from 'lucide';
 import {createGlobe} from './globe.js';
 const iconMap={Globe2,Orbit,CalendarCheck2,ListTodo,BookOpen,ChartNoAxesCombined,Plus,X,Check,ChevronLeft,ChevronRight,ArrowUpRight,MapPin,Settings2,LocateFixed,Minus,Activity,Droplets,Moon,Footprints,Target,Trash2,LogOut,Download,LockKeyhole,RefreshCw,WifiOff,CircleHelp,Sparkles,Pencil,Flag};
