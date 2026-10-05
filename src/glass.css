@@ -274,3 +274,18 @@ input::placeholder, textarea::placeholder { color: #a18ba9; }
   .journal-card, .note-card, .focus-card, .habit-hero, .globe-panel, .setup-notice,
   .mobile-nav, dialog { background: #291c30; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
+
+/* Atlas labels sit on the globe and disappear behind the horizon. */
+.globe-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.globe-place-label { position: absolute; transform: translate(-50%, -135%); pointer-events: auto; white-space: nowrap; padding: 7px 12px; border: 1px solid #ffb5d952; border-radius: 999px; background: #301c36e8; color: #ffe1f2; font: 600 11px var(--font-body, sans-serif); box-shadow: 0 4px 22px #170f2870, inset 0 1px 0 #ffffff22; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); cursor: pointer; }
+.globe-place-label.mountain { color: #ffe1bf; border-color: #ffd7a952; }
+.globe-place-label[hidden] { display: none; }
+.globe-place-label:focus-visible, .atlas-focus button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.atlas-focus { position: absolute; z-index: 3; top: 66px; left: 26px; display: flex; flex-wrap: wrap; gap: 7px; max-width: calc(100% - 52px); }
+.atlas-focus button { display: flex; align-items: center; gap: 6px; background: #2b1b34dd; border: 1px solid #ffffff20; border-radius: 999px; color: #f6d7eb; padding: 9px 12px; font: inherit; font-size: 11px; cursor: pointer; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.atlas-focus button svg { width: 13px; height: 13px; }
+.atlas-focus button:hover { border-color: #ff8dcb88; background: #483047; }
+.globe-caption { z-index: 2; }
+.globe-controls { z-index: 4; }
+@media (max-width: 600px) { .atlas-focus { left: 18px; top: 62px; gap: 5px; } .atlas-focus button { padding: 8px 10px; font-size: 10px; } .globe-place-label { font-size: 10px; padding: 6px 9px; } }
+.globe-place-label.geographic { background: #251d32cf; color: #e3d3df; padding: 5px 9px; font-size: 10px; border-color: #ffffff26; font-weight: 400; }

@@ -1,3 +1,4 @@
+import {withConfirmedVisits} from '../shared/atlas-places.js';
 const encoder = new TextEncoder();
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 const empty = () => ({places:[],habits:[],tasks:[],entries:[]});
@@ -16,7 +17,7 @@ export function validState(s) {
   const str=(x,n=1000)=>typeof x==='string'&&x.length<=n;
   const id=x=>str(x.id,100)&&/^[A-Za-z0-9_-]+$/.test(x.id);
   const date=x=>str(x,10)&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&!Number.isNaN(Date.parse(x))&&new Date(x).toISOString().slice(0,10)===x;
-  return s.places.every(x=>id(x)&&str(x.name,100)&&x.name.trim().length>0&&str(x.country,100)&&x.country.trim().length>0&&Number.isFinite(x.lat)&&Math.abs(x.lat)<=90&&Number.isFinite(x.lng)&&Math.abs(x.lng)<=180&&date(x.date)&&str(x.note,2000))
+  return s.places.every(x=>id(x)&&str(x.name,100)&&x.name.trim().length>0&&str(x.country,100)&&x.country.trim().length>0&&Number.isFinite(x.lat)&&Math.abs(x.lat)<=90&&Number.isFinite(x.lng)&&Math.abs(x.lng)<=180&&(x.date===''||date(x.date))&&str(x.note,2000))
     &&s.habits.every(x=>id(x)&&str(x.name,100)&&x.name.trim().length>0&&['activity','book-open','droplets','moon','footprints','target'].includes(x.icon)&&Array.isArray(x.days)&&x.days.length<=10000&&x.days.every(date))
     &&s.tasks.every(x=>id(x)&&str(x.title,250)&&x.title.trim().length>0&&typeof x.done==='boolean'&&['normal','high'].includes(x.priority)&&(x.due===''||date(x.due)))
     &&s.entries.every(x=>id(x)&&date(x.date)&&str(x.text,10000)&&x.text.trim().length>0&&['great','good','okay','low'].includes(x.mood));
@@ -47,8 +48,15 @@ export default {
       if(!await authenticated(request,secret))return json({error:'Inicia sesión para abrir tu espacio.'},401);
       if(url.pathname==='/api/logout'&&request.method==='POST')return json({ok:true},200,{'Set-Cookie':'orbita_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure'});
       if(url.pathname==='/api/state'&&request.method==='GET') {
-        const row=await env.DB.prepare('SELECT data,revision FROM app_state WHERE id = 1').first();
-        return json(row?{state:JSON.parse(row.data),revision:row.revision}:{state:empty(),revision:0});
+        await env.DB.prepare('INSERT OR IGNORE INTO app_state (id,data,revision) VALUES (1,?,0)').bind(JSON.stringify(empty())).run();
+        for(let attempt=0;attempt<4;attempt++) {
+          const row=await env.DB.prepare('SELECT data,revision FROM app_state WHERE id = 1').first();
+          const state=JSON.parse(row.data),updated=withConfirmedVisits(state);
+          if(updated===state)return json({state,revision:row.revision});
+          const result=await env.DB.prepare('UPDATE app_state SET data = ?, revision = revision + 1 WHERE id = 1 AND revision = ?').bind(JSON.stringify(updated),row.revision).run();
+          if(result.meta.changes)return json({state:updated,revision:row.revision+1});
+        }
+        return json({error:'Se están guardando cambios. Vuelve a cargar tu espacio.'},409);
       }
       if(url.pathname==='/api/state'&&request.method==='PUT') {
         const raw=await request.text();if(raw.length>1000000)return json({error:'El contenido supera el límite de guardado.'},413);
