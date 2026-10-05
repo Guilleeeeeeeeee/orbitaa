@@ -22,11 +22,21 @@ export function createGlobe(container,places,onSelect) {
   const light=new THREE.DirectionalLight(0xffd5e9,2.2);light.position.set(5,4,-3);scene.add(light);
   const world=new THREE.Group();scene.add(world);
   const canvas=document.createElement('canvas');canvas.width=4096;canvas.height=2048;const ctx=canvas.getContext('2d');
-  const ocean=ctx.createLinearGradient(0,0,0,2048);ocean.addColorStop(0,'#16172b');ocean.addColorStop(.5,'#252238');ocean.addColorStop(1,'#171627');ctx.fillStyle=ocean;ctx.fillRect(0,0,4096,2048);
+  ctx.fillStyle='#1c1e30';ctx.fillRect(0,0,4096,2048);
   const xy=([lng,lat])=>[(lng+180)/360*4096,(90-lat)/180*2048];
   for(const country of countries){ctx.beginPath();const polygons=country.geometry.type==='Polygon'?[country.geometry.coordinates]:country.geometry.coordinates;for(const polygon of polygons)for(const ring of polygon){ring.forEach((p,i)=>{const [x,y]=xy(p);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();}ctx.fillStyle='#716076';ctx.fill('evenodd');ctx.strokeStyle='#ad8ba6';ctx.lineWidth=.65;ctx.stroke();}
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   const globe=new THREE.Mesh(new THREE.SphereGeometry(2,192,128),new THREE.MeshPhongMaterial({map:texture,shininess:24,specular:0x47344b}));world.add(globe);
+  // A curved high-resolution inset avoids a pixelated coastline at regional zoom.
+  const inset=document.createElement('canvas');inset.width=2048;inset.height=2048;const local=inset.getContext('2d');local.fillStyle='#1c1e30';local.fillRect(0,0,2048,2048);
+  const localXY=([lng,lat])=>[(lng+2)/7*2048,(45-lat)/7*2048];
+  for(const country of countries){local.beginPath();const polygons=country.geometry.type==='Polygon'?[country.geometry.coordinates]:country.geometry.coordinates;for(const polygon of polygons)for(const ring of polygon){ring.forEach((p,i)=>{const [x,y]=localXY(p);i?local.lineTo(x,y):local.moveTo(x,y);});local.closePath();}local.fillStyle='#716076';local.fill('evenodd');local.strokeStyle='#ad8ba6';local.lineWidth=1;local.stroke();}
+  const insetTexture=new THREE.CanvasTexture(inset);insetTexture.colorSpace=THREE.SRGBColorSpace;insetTexture.anisotropy=texture.anisotropy;
+  const vertices=[],uvs=[],indices=[],segments=96;
+  for(let y=0;y<=segments;y++)for(let x=0;x<=segments;x++){const v=point(-2+x/segments*7,45-y/segments*7,2.0002);vertices.push(v.x,v.y,v.z);uvs.push(x/segments,1-y/segments);}
+  for(let y=0;y<segments;y++)for(let x=0;x<segments;x++){const a=y*(segments+1)+x,b=a+1,c=a+segments+1,d=c+1;indices.push(a,c,b,b,c,d);}
+  const insetGeometry=new THREE.BufferGeometry();insetGeometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));insetGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));insetGeometry.setIndex(indices);insetGeometry.computeVertexNormals();
+  world.add(new THREE.Mesh(insetGeometry,new THREE.MeshPhongMaterial({map:insetTexture,shininess:24,specular:0x47344b,side:THREE.DoubleSide})));
   const gridMaterial=new THREE.LineBasicMaterial({color:0xcaa9c1,transparent:true,opacity:.09});
   for(let lat=-60;lat<=60;lat+=30){const p=[];for(let lng=-180;lng<=180;lng+=2)p.push(point(lng,lat,2.001));world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),gridMaterial));}
   for(let lng=0;lng<360;lng+=30){const p=[];for(let lat=-90;lat<=90;lat+=2)p.push(point(lng,lat,2.001));world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),gridMaterial));}
@@ -67,5 +77,5 @@ export function createGlobe(container,places,onSelect) {
     renderer.render(scene,camera);
   }animate();
   function move(to){controls.autoRotate=false;if(reduced()){camera.position.copy(to);controls.update();}else destination=to;}
-  return {zoom(dir){destination=null;const r=THREE.MathUtils.clamp(2+(camera.position.length()-2)*(dir>0?.7:1.43),controls.minDistance,controls.maxDistance);camera.position.setLength(r);controls.update();},reset(){move(home);},focus(p){if(p)move(point(p.lng,p.lat,p.id==='visited-barcelona-sitges'?2.025:p.id==='visited-andorra'?2.025:2.15));},dispose(){cancelAnimationFrame(frame);ro.disconnect();controls.dispose();renderer.domElement.removeEventListener('keydown',keydown);renderer.domElement.removeEventListener('pointerdown',pointerDown);renderer.domElement.removeEventListener('pointerup',pointerUp);const materials=new Set();scene.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [o.material].flat())materials.add(m);});materials.forEach(m=>m.dispose());texture.dispose();renderer.dispose();renderer.domElement.remove();labelLayer.remove();}};
+  return {zoom(dir){destination=null;const r=THREE.MathUtils.clamp(2+(camera.position.length()-2)*(dir>0?.7:1.43),controls.minDistance,controls.maxDistance);camera.position.setLength(r);controls.update();},reset(){move(home);},focus(p){if(p)move(point(p.lng,p.lat,p.id==='visited-barcelona-sitges'?2.025:p.id==='visited-andorra'?2.025:2.15));},dispose(){cancelAnimationFrame(frame);ro.disconnect();controls.dispose();renderer.domElement.removeEventListener('keydown',keydown);renderer.domElement.removeEventListener('pointerdown',pointerDown);renderer.domElement.removeEventListener('pointerup',pointerUp);const materials=new Set();scene.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [o.material].flat())materials.add(m);});materials.forEach(m=>m.dispose());texture.dispose();insetTexture.dispose();renderer.dispose();renderer.domElement.remove();labelLayer.remove();}};
 }
