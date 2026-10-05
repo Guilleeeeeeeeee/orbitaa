@@ -301,3 +301,7 @@ input::placeholder, textarea::placeholder { color: #a18ba9; }
 .map-key { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .map-key .route-key { width: 16px; height: 0; background: none; border-top: 1px dashed #ffb4df; border-radius: 0; margin-left: 8px; }
 @media (max-width: 600px) { #globe { height: 103%; top: -5%; } .globe-caption { left: 20px; bottom: 44px; } .globe-caption h2 { font-size: 20px; } .map-key { font-size: 9px; } }
+.login-card > p.login-credit { margin-top: 10px !important; margin-bottom: 26px !important; line-height: 1.6; }
+.login-mark { display: flex; align-items: center; justify-content: center; }
+.login-mark img { width: min(420px, 78%); height: auto; border-radius: 40px; box-shadow: 0 25px 100px #ff47b71c; }
+@media (max-width: 760px) { .login-mark { display: none; } }
