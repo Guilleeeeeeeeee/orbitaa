@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { feature } from 'topojson-client';
 import atlas from 'world-atlas/countries-50m.json';
 import {visitedAreas,insideArea} from '../shared/atlas-places.js';
+import {buildAtlasRoutes,routePoints} from './atlas-routes.js';
 
 export const countries=feature(atlas,atlas.objects.countries).features;
 const point=(lng,lat,r=2)=>{const a=lng*Math.PI/180,b=lat*Math.PI/180;return new THREE.Vector3(r*Math.cos(b)*Math.cos(a),r*Math.sin(b),-r*Math.cos(b)*Math.sin(a));};
@@ -49,6 +50,13 @@ export function createGlobe(container,places,onSelect) {
   for(let lng=0;lng<360;lng+=30){const p=[];for(let lat=-90;lat<=90;lat+=2)p.push(point(lng,lat,2.001));world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),gridMaterial));}
   const halo=new THREE.Mesh(new THREE.SphereGeometry(2.045,96,64),new THREE.ShaderMaterial({transparent:true,side:THREE.BackSide,depthWrite:false,vertexShader:'varying vec3 vNormal; varying vec3 vPosition; void main(){vNormal=normalize(normalMatrix*normal);vec4 p=modelViewMatrix*vec4(position,1.0);vPosition=p.xyz;gl_Position=projectionMatrix*p;}',fragmentShader:'varying vec3 vNormal;varying vec3 vPosition;void main(){float rim=pow(1.0-abs(dot(normalize(vNormal),normalize(-vPosition))),3.0);gl_FragColor=vec4(1.0,0.42,0.76,rim*0.38);}'}));world.add(halo);
   const pickables=[globe,insetMesh];
+  const routeParticles=[];
+  for(const {origin,destination:place} of buildAtlasRoutes(places)){
+    const points=routePoints(origin,place),curve=new THREE.CatmullRomCurve3(points);
+    const glow=new THREE.Mesh(new THREE.TubeGeometry(curve,96,.00075,6,false),new THREE.MeshBasicMaterial({color:0xff70c5,transparent:true,opacity:.18,depthWrite:false}));world.add(glow);
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineDashedMaterial({color:0xffb4df,transparent:true,opacity:.85,dashSize:.0025,gapSize:.0015}));line.computeLineDistances();line.userData.place=place;world.add(line);
+    const particle=new THREE.Mesh(new THREE.SphereGeometry(.0011,12,8),new THREE.MeshBasicMaterial({color:0xffe8f6}));world.add(particle);routeParticles.push({particle,curve});
+  }
   const markers=[],labels=[],labelLayer=document.createElement('div');labelLayer.className='globe-labels';container.append(labelLayer);
   places.forEach(p=>{
     const color=visitedAreas[p.id]?.color||'#ff9bd3';
@@ -68,6 +76,7 @@ export function createGlobe(container,places,onSelect) {
     if(destination){const radius=THREE.MathUtils.lerp(camera.position.length(),destination.length(),1-Math.exp(-dt*5));camera.position.normalize().lerp(destination.clone().normalize(),1-Math.exp(-dt*5)).normalize().multiplyScalar(radius);if(camera.position.distanceTo(destination)<.0001){camera.position.copy(destination);destination=null;}}
     controls.rotateSpeed=Math.max(.025,Math.min(.45,(camera.position.length()-2)*.15));controls.update();camera.updateMatrixWorld();
     const scale=Math.max(.035,Math.min(1,(camera.position.length()-2)/2));for(const {group,ring} of markers){group.scale.setScalar(scale);ring.material.opacity=reduced()?.5:.4+Math.sin(time*.0015)*.15;}
+    routeParticles.forEach(({particle,curve},i)=>{particle.position.copy(curve.getPoint(reduced()?.5:(time*.00006+i*.35)%1));});
     const occupied=[];
     for(const {label,position,local} of [...labels].sort((a,b)=>b.p.lat-a.p.lat)){projected.copy(position).project(camera);const visible=(!local||camera.position.length()<2.18)&&position.dot(camera.position.clone().sub(position))>0&&projected.z<1&&Math.abs(projected.x)<.85&&Math.abs(projected.y)<.85;label.hidden=!visible;if(visible){const x=(projected.x*.5+.5)*container.clientWidth;let y=(-projected.y*.5+.5)*container.clientHeight;for(const other of occupied)if(Math.abs(x-other.x)<150&&Math.abs(y-other.y)<34)y=other.y+34;occupied.push({x,y});label.style.left=x+'px';label.style.top=y+'px';}}
     renderer.render(scene,camera);

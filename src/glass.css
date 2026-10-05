@@ -289,3 +289,15 @@ input::placeholder, textarea::placeholder { color: #a18ba9; }
 .globe-controls { z-index: 4; }
 @media (max-width: 600px) { .atlas-focus { left: 18px; top: 62px; gap: 5px; } .atlas-focus button { padding: 8px 10px; font-size: 10px; } .globe-place-label { font-size: 10px; padding: 6px 9px; } }
 .globe-place-label.geographic { background: #251d32cf; color: #e3d3df; padding: 5px 9px; font-size: 10px; border-color: #ffffff26; font-weight: 400; }
+
+/* JP7 chrome mark and a quieter atlas. */
+.brand img, .mobile-brand img { border-radius: 10px; background: #000; }
+.brand img { width: 44px; height: 44px; }
+.login-brand img { width: 60px; height: 60px; border-radius: 15px; }
+.login-credit { font-size: 12px !important; margin-top: -10px !important; color: #d1a9c5 !important; }
+.globe-caption { bottom: 46px; }
+.globe-caption h2 { font-size: 22px; letter-spacing: -.5px; }
+#globe { height: 105%; top: -8%; }
+.map-key { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.map-key .route-key { width: 16px; height: 0; background: none; border-top: 1px dashed #ffb4df; border-radius: 0; margin-left: 8px; }
+@media (max-width: 600px) { #globe { height: 103%; top: -5%; } .globe-caption { left: 20px; bottom: 44px; } .globe-caption h2 { font-size: 20px; } .map-key { font-size: 9px; } }
