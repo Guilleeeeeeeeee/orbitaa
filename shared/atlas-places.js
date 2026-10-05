@@ -5,9 +5,9 @@ export const placeMemories = {
   'visited-laurentis': {dateLabel:'Agosto',note:'Viaje extremisimo con clima de National Geografic (encima el primero, vaya bomba).',photo:'laurentis'}
 };
 export const memoryPhotos = {
-  barcelona: {src:'',alt:'Fitness 19, nuestro sitio en Barcelona'},
-  andorra: {src:'',alt:'El hotel del recuerdo de Andorra'},
-  laurentis: {src:'',alt:'Una vaca junto al lago entre las montañas'}
+  barcelona: {src:'/memories/barcelona.webp',alt:'Fitness 19, nuestro sitio en Barcelona'},
+  andorra: {src:'/memories/andorra.webp',alt:'El hotel del recuerdo de Andorra'},
+  laurentis: {src:'/memories/laurentis.webp',alt:'Una vaca junto al lago entre las montañas'}
 };
 export const atlasPlaces = [
   {id:'visited-barcelona-sitges',name:'Barcelona',country:'España',lat:41.284,lng:1.978,date:'',note:'Zona costera de Barcelona visitada. La superficie coloreada representa de forma aproximada la zona indicada, no un límite administrativo.'},
