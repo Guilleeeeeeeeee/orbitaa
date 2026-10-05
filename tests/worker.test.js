@@ -16,10 +16,15 @@ test('login rate limiting and missing secret fail closed',async()=>{const env=en
 test('confirmed visits are saved once, preserve existing data, and stay deleted across reloads',async()=>{
  const env=environment(),login=await worker.fetch(req('login','POST',{password:secret}),env),cookie=login.headers.get('set-cookie').split(';')[0];
  const first=await(await worker.fetch(req('state','GET',null,cookie),env)).json();
- assert.deepEqual(first.state.places.map(p=>p.name),['Barcelona–Sitges','Andorra']);
+ assert.deepEqual(first.state.places.map(p=>p.name),['Barcelona','Andorra','Lago Laurentis']);
  assert.ok(validState(first.state));assert.ok(first.state.places.every(p=>p.date===''));
  const second=await(await worker.fetch(req('state','GET',null,cookie),env)).json();assert.deepEqual(second,first);
  first.state.places=[];first.state.tasks.push({id:'keep-task',title:'Mi tarea',done:false,priority:'normal',due:''});
  assert.equal((await worker.fetch(req('state','PUT',first,cookie),env)).status,200);
  const third=await(await worker.fetch(req('state','GET',null,cookie),env)).json();assert.equal(third.state.places.length,0);assert.equal(third.state.tasks[0].title,'Mi tarea');
+});
+
+test('atlas update renames Barcelona, preserves personal notes and deletions, and adds the lake once',()=>{
+ const old={...empty(),atlasVersion:1,places:[{id:'visited-barcelona-sitges',name:'Barcelona–Sitges',note:'Mi recuerdo',country:'España',date:'',lat:41.28,lng:1.97}]};
+ const updated=withConfirmedVisits(old);assert.equal(updated.places[0].name,'Barcelona');assert.equal(updated.places[0].note,'Mi recuerdo');assert.equal(updated.places.length,2);assert.equal(updated.places[1].name,'Lago Laurentis');assert.ok(validState(updated));assert.equal(withConfirmedVisits(updated),updated);
 });
