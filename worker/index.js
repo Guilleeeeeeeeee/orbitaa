@@ -1,4 +1,5 @@
 import {withConfirmedVisits,memoryPhotos} from '../shared/atlas-places.js';
+import {pushApi,sendDaily} from './notifications.js';
 const encoder = new TextEncoder();
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 const empty = () => ({places:[],habits:[],tasks:[],entries:[]});
@@ -23,6 +24,7 @@ export function validState(s) {
     &&s.entries.every(x=>id(x)&&date(x.date)&&str(x.text,10000)&&x.text.trim().length>0&&['great','good','okay','low'].includes(x.mood));
 }
 export default {
+  async scheduled(controller,env) {await sendDaily(env,new Date(controller.scheduledTime));},
   async fetch(request,env) {
     const url=new URL(request.url);
     if(!url.pathname.startsWith('/api/'))return env.ASSETS.fetch(request);
@@ -46,6 +48,7 @@ export default {
         return json({ok:true},200,{'Set-Cookie':`orbita_session=${token}; HttpOnly; ${url.protocol==='https:'?'Secure; ':''}SameSite=Strict; Path=/; Max-Age=2592000`});
       }
       if(!await authenticated(request,secret))return json({error:'Inicia sesión para abrir tu espacio.'},401);
+      if(url.pathname.startsWith('/api/push/'))return await pushApi(request,env);
       if(url.pathname==='/api/logout'&&request.method==='POST')return json({ok:true},200,{'Set-Cookie':'orbita_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure'});
       if(url.pathname==='/api/state'&&request.method==='GET') {
         await env.DB.prepare('INSERT OR IGNORE INTO app_state (id,data,revision) VALUES (1,?,0)').bind(JSON.stringify(empty())).run();

@@ -10,7 +10,7 @@ PWA personal para ordenador y iPhone, con una interfaz oscura y adaptable. Códi
 - **Diario:** entradas con fecha y estado de ánimo. Sección provisional.
 - **Resumen:** actividad real de los últimos siete días, tareas completadas y rachas. Sección provisional.
 - Clave privada, sesión HttpOnly y datos persistentes. La vista de prueba usa datos temporales y está claramente identificada.
-- Manifest e iconos para instalación. El service worker conserva solo la aplicación, nunca respuestas privadas de la API. Se necesita conexión para cargar y guardar datos. No hay edición sin conexión ni notificaciones push en esta versión.
+- Manifest e iconos para instalación. El service worker conserva solo la aplicación, nunca respuestas privadas de la API. Se necesita conexión para cargar y guardar datos. No hay edición sin conexión. El aviso diario de las 23:23 se activa por dispositivo desde Ajustes.
 
 ## Publicar en tu cuenta de Cloudflare
 
@@ -96,3 +96,11 @@ Las pruebas comprueban las cinco vistas y operaciones principales con un DOM de 
 - `wrangler.jsonc`: configuración Cloudflare.
 
 Mapas: `world-atlas`, basados en Natural Earth (dominio público). Iconos: Lucide (ISC). Tipografías: DM Sans y Manrope, incluidas localmente mediante Fontsource (SIL OFL). No hay peticiones de fuentes ni mapas a terceros en ejecución.
+
+## Aviso JP7 de las 23:23
+
+En iPhone, instala la PWA desde Safari y abre JP7 desde su icono. En Ajustes, pulsa **Activar aviso**, permite las notificaciones y utiliza **Probar notificación**. No requiere Apple Developer ni TestFlight. La notificación utiliza el aspecto de iOS y abre un cartel LED rojo dentro de JP7. No modifica la Dynamic Island. Se programa para las 23:23 de Europe/Madrid y no se puede garantizar entrega al segundo ni retirar una notificación de iOS exactamente a las 23:24. El cartel dentro de la app termina al cambiar de minuto; la vista previa dura 60 segundos.
+
+El despliegue aplica `0002_push.sql`. Las claves VAPID se generan una sola vez en D1; la clave privada nunca se devuelve a la app ni se guarda en GitHub. Las suscripciones también se guardan en D1 separadas de los viajes y hábitos. El usuario puede desactivar cada dispositivo en Ajustes. Los endpoints se limitan a los servicios push de Apple, Google y Mozilla y todas las operaciones requieren sesión privada.
+
+Wrangler configura el cron `23 21,22 * * *` (UTC). El Worker comprueba Europe/Madrid para enviar solo a las 23:23 locales, incluyendo cambios de horario, y registra cada día por dispositivo para evitar duplicados. Los avisos tienen TTL de 60 segundos; los endpoints caducados (404/410) se eliminan. Los cambios de cron pueden tardar varios minutos en propagarse en Cloudflare. Una prueba manual confirma aceptación por el servicio push, no garantiza que iOS lo muestre: comprueba permisos, conexión y Concentración en el teléfono.
