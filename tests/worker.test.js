@@ -16,8 +16,8 @@ test('login rate limiting and missing secret fail closed',async()=>{const env=en
 test('confirmed visits are saved once, preserve existing data, and stay deleted across reloads',async()=>{
  const env=environment(),login=await worker.fetch(req('login','POST',{password:secret}),env),cookie=login.headers.get('set-cookie').split(';')[0];
  const first=await(await worker.fetch(req('state','GET',null,cookie),env)).json();
- assert.deepEqual(first.state.places.map(p=>p.name),['Barcelona','Andorra','Lago Laurentis']);
- assert.ok(validState(first.state));assert.ok(first.state.places.every(p=>p.date===''));assert.deepEqual(first.state.places.map(p=>p.dateLabel),['Toda la vida','septiembre','Agosto']);assert.deepEqual(first.state.places.map(p=>p.photo),['barcelona','andorra','laurentis']);
+ assert.deepEqual(first.state.places.map(p=>p.name),['Barcelona','Andorra','Lago Laurentis','Riera de Merlès','?','Praga']);
+ assert.ok(validState(first.state));assert.ok(first.state.places.every(p=>p.date===''));assert.deepEqual(first.state.places.map(p=>p.dateLabel),['Toda la vida','septiembre','Agosto','Julio','24-25 octubre','Enero/Febrero']);assert.deepEqual(first.state.places.map(p=>p.photo),['barcelona','andorra','laurentis','merles',undefined,undefined]);
  const second=await(await worker.fetch(req('state','GET',null,cookie),env)).json();assert.deepEqual(second,first);
  first.state.places=[];first.state.tasks.push({id:'keep-task',title:'Mi tarea',done:false,priority:'normal',due:''});
  assert.equal((await worker.fetch(req('state','PUT',first,cookie),env)).status,200);
@@ -26,5 +26,23 @@ test('confirmed visits are saved once, preserve existing data, and stay deleted 
 
 test('atlas update applies requested memories, respects deletions, and adds the lake once',()=>{
  const old={...empty(),atlasVersion:1,places:[{id:'visited-barcelona-sitges',name:'Barcelona–Sitges',note:'Mi recuerdo',country:'España',date:'',lat:41.28,lng:1.97}]};
- const updated=withConfirmedVisits(old);assert.equal(updated.places[0].name,'Barcelona');assert.equal(updated.places[0].note,'Pues donde siempre (+ HYPE).');assert.equal(updated.places.length,2);assert.equal(updated.places[1].name,'Lago Laurentis');assert.ok(validState(updated));assert.equal(withConfirmedVisits(updated),updated);
+ const updated=withConfirmedVisits(old);assert.equal(updated.places[0].name,'Barcelona');assert.equal(updated.places[0].note,'Pues donde siempre (+ HYPE).');assert.equal(updated.places.length,5);assert.equal(updated.places[1].name,'Lago Laurentis');assert.ok(validState(updated));assert.equal(withConfirmedVisits(updated),updated);
+});
+
+test('new atlas migration preserves memories, deleted old sites, and confirmation answers',()=>{
+ const old={...empty(),atlasVersion:3,places:[{id:'visited-andorra',name:'Andorra',country:'Andorra',date:'',lat:42.546,lng:1.601,note:'Día número 1 del año (99% insuperable.'}]};
+ const migrated=withConfirmedVisits(old);assert.equal(migrated.places.length,4);assert.equal(migrated.places[0].note,'Día número 1 del año (99% insuperable).');assert.ok(!migrated.places.some(p=>p.name==='Barcelona'));assert.equal(migrated.places.find(p=>p.name==='?').secret,true);
+ const edited={...old,places:[{...old.places[0],note:'Mi texto actualizado'}]};assert.equal(withConfirmedVisits(edited).places[0].note,'Mi texto actualizado');
+});
+test('trip confirmations survive saving and reloading and reject invalid choices',async()=>{
+ const env=environment(),login=await worker.fetch(req('login','POST',{password:secret}),env),cookie=login.headers.get('set-cookie').split(';')[0];
+ let read=await(await worker.fetch(req('state','GET',null,cookie),env)).json();
+ for(const answer of ['yes','no']){
+   read.state.places.find(p=>p.id==='planned-surprise').confirmation=answer;
+   assert.equal((await worker.fetch(req('state','PUT',read,cookie),env)).status,200);
+   read=await(await worker.fetch(req('state','GET',null,cookie),env)).json();
+   assert.equal(read.state.places.find(p=>p.id==='planned-surprise').confirmation,answer);
+   assert.equal(read.state.places.find(p=>p.id==='planned-prague').confirmation,'pending');
+ }
+ read.state.places.find(p=>p.id==='planned-prague').confirmation='invalid';assert.equal(validState(read.state),false);
 });

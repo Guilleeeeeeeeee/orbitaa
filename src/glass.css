@@ -308,3 +308,33 @@ input::placeholder, textarea::placeholder { color: #a18ba9; }
 .place-detail-photo { display: block; width: 100%; max-height: 55vh; height: auto; object-fit: contain; margin: 20px 0; border-radius: 18px; background: #100b15; border: 1px solid #ffffff14; }
 .place-note { line-height: 1.7; }
 @media (max-width: 600px) { .place-detail-photo { max-height: 48vh; border-radius: 14px; } }
+
+/* Moving route vehicles, with fixed screen size and horizon occlusion. */
+.route-vehicle { position: absolute; display: grid; place-items: center; width: 25px; height: 25px; color: #ffe6f5; background: #382031df; border: 1px solid #ffb4df88; border-radius: 8px; box-shadow: 0 0 12px #ff69bc55; pointer-events: none; }
+.route-vehicle svg { width: 17px; height: 17px; }
+.route-vehicle[hidden] { display: none; }
+.route-vehicle.plane { background: #4a263ddf; border-radius: 50%; }
+.place-detail-photo { box-shadow: 0 8px 24px #ff4faf26, 0 0 14px #ff8dcb20; }
+.trip-confirmation { margin: 0 0 24px; padding: 18px; border: 1px solid #ffb4df30; border-radius: 18px; background: #ff98ca09; }
+.confirmation-status { font-size: 14px; color: #ffd4eb; margin-bottom: 14px; }
+.confirmation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirmation-actions .button { padding-inline: 10px; }
+.trip-confirmation .form-error:empty { display: none; }
+/* Stable, reachable actions when a photo or the keyboard makes the sheet tall. */
+dialog { max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 24px 90px; }
+.modal-heading { align-items: center; gap: 12px; }
+.modal-heading .icon-button { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 1px solid #ffffff20; background: #ffffff08; }
+.modal-heading .icon-button svg { width: 20px; height: 20px; }
+.modal-actions { position: sticky; bottom: -27px; margin: 24px -27px -27px; padding: 16px 27px 22px; background: #302035f5; border-top: 1px solid #ffffff12; z-index: 5; }
+.modal-actions .button { min-height: 46px; }
+input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 1.25em; }
+@media (max-width: 600px) {
+  dialog { padding: 22px; }
+  .modal-actions { bottom: -22px; margin-inline: -22px; margin-bottom: -22px; padding: 14px 22px 18px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+  .modal-actions .button { min-width: 0; white-space: normal; padding: 12px 10px; }
+  .atlas-focus { right: 18px; max-width: none; }
+  .atlas-focus button { min-height: 36px; }
+  .globe-controls .icon-button { width: 42px; height: 42px; }
+  .confirmation-actions .button { font-size: 13px; }
+}

@@ -17,7 +17,7 @@ export function validState(s) {
   const str=(x,n=1000)=>typeof x==='string'&&x.length<=n;
   const id=x=>str(x.id,100)&&/^[A-Za-z0-9_-]+$/.test(x.id);
   const date=x=>str(x,10)&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&!Number.isNaN(Date.parse(x))&&new Date(x).toISOString().slice(0,10)===x;
-  return s.places.every(x=>id(x)&&str(x.name,100)&&x.name.trim().length>0&&str(x.country,100)&&x.country.trim().length>0&&Number.isFinite(x.lat)&&Math.abs(x.lat)<=90&&Number.isFinite(x.lng)&&Math.abs(x.lng)<=180&&(x.date===''||date(x.date))&&str(x.note,2000)&&(x.dateLabel===undefined||str(x.dateLabel,100))&&(x.photo===undefined||Object.hasOwn(memoryPhotos,x.photo)))
+  return s.places.every(x=>id(x)&&str(x.name,100)&&x.name.trim().length>0&&str(x.country,100)&&x.country.trim().length>0&&Number.isFinite(x.lat)&&Math.abs(x.lat)<=90&&Number.isFinite(x.lng)&&Math.abs(x.lng)<=180&&(x.date===''||date(x.date))&&str(x.note,2000)&&(x.dateLabel===undefined||str(x.dateLabel,100))&&(x.photo===undefined||Object.hasOwn(memoryPhotos,x.photo))&&(x.confirmation===undefined||['pending','yes','no'].includes(x.confirmation))&&(x.secret===undefined||typeof x.secret==='boolean'))
     &&s.habits.every(x=>id(x)&&str(x.name,100)&&x.name.trim().length>0&&['activity','book-open','droplets','moon','footprints','target'].includes(x.icon)&&Array.isArray(x.days)&&x.days.length<=10000&&x.days.every(date))
     &&s.tasks.every(x=>id(x)&&str(x.title,250)&&x.title.trim().length>0&&typeof x.done==='boolean'&&['normal','high'].includes(x.priority)&&(x.due===''||date(x.due)))
     &&s.entries.every(x=>id(x)&&date(x.date)&&str(x.text,10000)&&x.text.trim().length>0&&['great','good','okay','low'].includes(x.mood));
