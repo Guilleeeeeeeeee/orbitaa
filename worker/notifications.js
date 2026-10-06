@@ -5,7 +5,7 @@ export function madridMoment(date=new Date()){
   return {day:`${parts.year}-${parts.month}-${parts.day}`,time:`${parts.hour}:${parts.minute}`};
 }
 export function notificationPayload(origin=SITE,test=false){
-  return {title:test?'JP7 · Prueba de las 23:23':'SON LAS 23:23!!! ❤️',body:test?'Así llegará tu momento de las 23:23. Toca para ver el cartel.':'Un minuto para ti, JP. Toca y entra en tu momento especial. ✨',icon:origin+'/jp7-chrome-192.png',tag:test?'jp7-2323-test':'jp7-2323',url:origin+'/#2323'+(test?'-test':''),test};
+  return {title:test?'JP7 · Prueba de las 23:23':'SON LAS 23:23!!!',body:test?'Así llegará el aviso de las 23:23. Toca para ver el cartel.':'Toca para ver el cartel.',icon:origin+'/jp7-chrome-192.png',tag:test?'jp7-2323-test':'jp7-2323',url:origin+'/#2323'+(test?'-test':''),test};
 }
 export async function getVapid(env){
   let row=await env.DB.prepare('SELECT data FROM push_config WHERE id = 1').first();

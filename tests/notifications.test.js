@@ -19,7 +19,7 @@ function environment(){
   return {ORBITA_PASSWORD:'long-password-for-tests-only',DB:{prepare:statement}};
 }
 test('push encryption decrypts independently with Node crypto and the receiver private key',async()=>{
-  const {key,auth,subscription}=receiver(),payload={title:'SON LAS 23:23!!! ❤️',body:'Un minuto para ti'};
+  const {key,auth,subscription}=receiver(),payload={title:'SON LAS 23:23!!!',body:'Toca para ver el cartel.'};
   const packet=Buffer.from(await encryptPayload(subscription,payload));assert.equal(packet.readUInt32BE(16),4096);assert.equal(packet[20],65);
   const salt=packet.subarray(0,16),sender=packet.subarray(21,86),shared=key.computeSecret(sender);
   const input=hkdfSync('sha256',shared,auth,Buffer.concat([Buffer.from('WebPush: info\0'),key.getPublicKey(),sender]),32);
