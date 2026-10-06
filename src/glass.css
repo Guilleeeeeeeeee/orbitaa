@@ -338,3 +338,12 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 
   .globe-controls .icon-button { width: 42px; height: 42px; }
   .confirmation-actions .button { font-size: 13px; }
 }
+
+/* Date controls in iOS need a full column; never overlap the priority selector. */
+.task-form-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.task-form-options > label { min-width: 0; }
+.task-form-options input, .task-form-options select { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+@media (max-width: 600px) {
+  .task-form-options { grid-template-columns: minmax(0,1fr); gap: 0; }
+  .task-form-options input[type="date"] { min-height: 48px; }
+}
