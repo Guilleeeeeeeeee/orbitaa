@@ -369,3 +369,27 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 
 .globe-place-label { transform: translate(-50%,-50%); }
 .globe-label-connectors { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .globe-label-connectors line { stroke-width: 1; opacity: .8; }
+
+/* A quiet glass sculpture adds depth to the welcome screen without WebGL. */
+.login-layout { isolation: isolate; }
+.welcome-scene { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.welcome-glow { position: absolute; width: 700px; height: 700px; right: -120px; top: -130px; border-radius: 50%; background: radial-gradient(circle, #ff4da51c, transparent 65%); }
+.welcome-orb { position: absolute; width: 460px; height: 460px; right: 8%; top: 18%; perspective: 800px; transform-style: preserve-3d; opacity: .65; animation: welcome-float 14s ease-in-out infinite; }
+.welcome-sphere { position: absolute; inset: 19%; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #fff6fc88 0%, #ffa7d738 12%, #e6339829 37%, #1c0a201c 68%, #ff82c634 91%, #ffcef178 100%); border: 1px solid #ffe0f14d; box-shadow: inset -22px -18px 45px #10091770, inset 6px 4px 20px #ffe7f822, 0 0 75px #ff56ae18; }
+.welcome-ring { position: absolute; inset: 2%; border-radius: 50%; border: 1px solid #ffb4dc65; box-shadow: 0 0 18px #ff8bc625, inset 0 0 12px #ffc5e51c; }
+.ring-one { transform: rotateZ(-28deg) rotateX(64deg); }
+.ring-two { inset: 9%; transform: rotateZ(50deg) rotateY(62deg); border-color: #ffe6f440; }
+.welcome-satellite { position: absolute; width: 15px; height: 15px; left: 12%; top: 35%; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #fff5fc, #ff9bd1 50%, #a33372); box-shadow: 0 0 25px #ff7bbe70; }
+.login-mark { z-index: 1; }
+.login-mark img { position: relative; animation: welcome-mark 14s ease-in-out infinite; }
+@keyframes welcome-float { 0%,100% { transform: translateY(0) rotateZ(-3deg); } 50% { transform: translateY(-16px) rotateZ(5deg); } }
+@keyframes welcome-mark { 0%,100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(2deg) translateY(-8px); } }
+@media (max-width: 760px) {
+  .welcome-orb { width: 245px; height: 245px; right: -48px; top: calc(5px + env(safe-area-inset-top)); opacity: .65; }
+  .welcome-glow { width: 430px; height: 430px; right: -150px; top: -90px; }
+  .welcome-satellite { width: 10px; height: 10px; }
+  .login-card { position: relative; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-orb, .login-mark img { animation: none; }
+}
