@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { feature } from 'topojson-client';
 import atlas from 'world-atlas/countries-50m.json';
 import {visitedAreas,insideArea} from '../shared/atlas-places.js';
+import {layoutGlobeLabels} from './globe-label-layout.js';
 import {buildAtlasRoutes,routePoints,routeVehicleSvg} from './atlas-routes.js';
 
 export const countries=feature(atlas,atlas.objects.countries).features;
@@ -52,6 +53,7 @@ export function createGlobe(container,places,onSelect) {
   const pickables=[globe,insetMesh];
   const routeParticles=[];
   const markers=[],labels=[],labelLayer=document.createElement('div');labelLayer.className='globe-labels';container.append(labelLayer);
+  const connectors=document.createElementNS('http://www.w3.org/2000/svg','svg');connectors.classList.add('globe-label-connectors');connectors.setAttribute('aria-hidden','true');labelLayer.append(connectors);
   for(const {origin,destination:place,vehicle} of buildAtlasRoutes(places)){
     const points=routePoints(origin,place),curve=new THREE.CatmullRomCurve3(points);
     const glow=new THREE.Mesh(new THREE.TubeGeometry(curve,96,.00075,6,false),new THREE.MeshBasicMaterial({color:0xff70c5,transparent:true,opacity:.18,depthWrite:false}));world.add(glow);
@@ -63,7 +65,7 @@ export function createGlobe(container,places,onSelect) {
     const group=new THREE.Group();group.position.copy(point(p.lng,p.lat,2.003));group.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),group.position.clone().normalize());world.add(group);
     const dot=new THREE.Mesh(new THREE.SphereGeometry(.009,16,12),new THREE.MeshBasicMaterial({color}));dot.userData.place=p;group.add(dot);pickables.push(dot);
     const ring=new THREE.Mesh(new THREE.RingGeometry(.016,.019,40),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.6,side:THREE.DoubleSide,depthWrite:false}));group.add(ring);markers.push({group,ring});
-    const label=document.createElement('button');label.className='globe-place-label'+(p.id==='visited-andorra'?' mountain':'');label.style.borderColor=color+'80';label.textContent=p.name;label.setAttribute('aria-label','Ver '+p.name);label.addEventListener('click',()=>onSelect(p));labelLayer.append(label);labels.push({label,p,position:group.position});
+    const label=document.createElement('button');label.className='globe-place-label'+(p.id==='visited-andorra'?' mountain':'');label.style.borderColor=color+'80';label.textContent=p.name;label.setAttribute('aria-label','Ver '+p.name);label.addEventListener('click',()=>onSelect(p));labelLayer.append(label);const connector=document.createElementNS('http://www.w3.org/2000/svg','line');connector.setAttribute('stroke',color);connectors.append(connector);labels.push({label,connector,p,position:group.position,width:label.offsetWidth,height:label.offsetHeight});
   });
   const raycaster=new THREE.Raycaster();let down=null;
   const pointerDown=e=>down=[e.clientX,e.clientY];
@@ -84,8 +86,19 @@ export function createGlobe(container,places,onSelect) {
       const next=curve.getPoint(Math.min(1,t+.005)).project(camera),angle=vehicle==='plane'?Math.atan2(-(next.y-screen.y),next.x-screen.x)*180/Math.PI+45:0;
       particle.style.transform=`translate(-50%,-50%) rotate(${angle}deg)`;
     });
-    const occupied=[];
-    for(const {label,position,local} of [...labels].sort((a,b)=>b.p.lat-a.p.lat)){projected.copy(position).project(camera);const visible=(!local||camera.position.length()<2.18)&&position.dot(camera.position.clone().sub(position))>0&&projected.z<1&&Math.abs(projected.x)<.85&&Math.abs(projected.y)<.85;label.hidden=!visible;if(visible){const x=(projected.x*.5+.5)*container.clientWidth;let y=(-projected.y*.5+.5)*container.clientHeight;for(const other of occupied)if(Math.abs(x-other.x)<150&&Math.abs(y-other.y)<34)y=other.y+34;occupied.push({x,y});label.style.left=x+'px';label.style.top=y+'px';}}
+    const anchors=[];
+    for(const entry of labels){
+      const {label,connector,position}=entry;projected.copy(position).project(camera);
+      const visible=position.dot(camera.position.clone().sub(position))>0&&projected.z<1&&Math.abs(projected.x)<1&&Math.abs(projected.y)<1;
+      label.hidden=true;connector.style.display='none';
+      if(visible)anchors.push({...entry,x:(projected.x*.5+.5)*container.clientWidth,y:(-projected.y*.5+.5)*container.clientHeight});
+    }
+    for(const entry of layoutGlobeLabels(anchors,container.clientWidth,container.clientHeight)){
+      if(!entry.visible)continue;
+      const {label,connector}=entry;label.hidden=false;label.style.left=entry.x+'px';label.style.top=entry.y+'px';
+      const anchor=anchors.find(a=>a.label===label);connector.style.display='';
+      connector.setAttribute('x1',anchor.x);connector.setAttribute('y1',anchor.y);connector.setAttribute('x2',entry.endX);connector.setAttribute('y2',entry.endY);
+    }
     renderer.render(scene,camera);
   }animate();
   function move(to){controls.autoRotate=false;if(reduced()){camera.position.copy(to);controls.update();}else destination=to;}

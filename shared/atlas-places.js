@@ -1,4 +1,5 @@
 import {withHabitIcons} from './habit-icons.js';
+import {resetSurpriseAnswer} from './surprise-reset.js';
 // Confirmed visits. No visit dates or individual town visits are inferred.
 export const placeMemories = {
   'visited-barcelona-sitges': {dateLabel:'Toda la vida',note:'Pues donde siempre (+ HYPE).',photo:'barcelona'},
@@ -22,7 +23,7 @@ export const atlasPlaces = [
 ];
 // Each migration adds only its new destinations; deleted memories stay deleted.
 export function withConfirmedVisits(state) {
-  if(state.atlasVersion>=4)return withHabitIcons(state);
+  if(state.atlasVersion>=4)return resetSurpriseAnswer(withHabitIcons(state));
   const version=state.atlasVersion||0;
   let places=state.places.map(p=>({...p}));
   if(version<3){
@@ -33,7 +34,7 @@ export function withConfirmedVisits(state) {
   }
   places=places.map(p=>p.id==='visited-andorra'&&p.note==='Día número 1 del año (99% insuperable.'?{...p,note:placeMemories[p.id].note}:p);
   places.push(...atlasPlaces.slice(3).filter(p=>!places.some(x=>x.id===p.id||x.name.toLowerCase()===p.name.toLowerCase())).map(p=>({...p,...(placeMemories[p.id]||{})})));
-  return withHabitIcons({...state,atlasVersion:4,places});
+  return resetSurpriseAnswer(withHabitIcons({...state,atlasVersion:4,places}));
 }
 // Deliberately approximate visited areas; Andorra uses the atlas country boundary.
 export const visitedAreas = {
