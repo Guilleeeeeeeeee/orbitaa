@@ -1,5 +1,11 @@
 import {generateVapid,validSubscription,sendPush} from './web-push.js';
 const SITE='https://orbitaa.guillestyle2.workers.dev';
+export async function ensurePushTables(env){
+  // Some existing Workers are deployed directly without running new D1 migrations.
+  // Only initialise push tables; never touch the user's habits, tasks or memories.
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_config (id INTEGER PRIMARY KEY CHECK(id = 1), data TEXT NOT NULL)').run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS push_subscriptions (endpoint TEXT PRIMARY KEY, data TEXT NOT NULL, last_day TEXT NOT NULL DEFAULT '', last_test INTEGER NOT NULL DEFAULT 0)").run();
+}
 export function madridMoment(date=new Date()){
   const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date).map(p=>[p.type,p.value]));
   return {day:`${parts.year}-${parts.month}-${parts.day}`,time:`${parts.hour}:${parts.minute}`};
@@ -8,12 +14,21 @@ export function notificationPayload(origin=SITE,test=false){
   return {title:test?'JP7 · Prueba de las 23:23':'SON LAS 23:23!!!',body:test?'Así llegará el aviso de las 23:23. Toca para ver el cartel.':'Toca para ver el cartel.',icon:origin+'/jp7-chrome-192.png',tag:test?'jp7-2323-test':'jp7-2323',url:origin+'/#2323'+(test?'-test':''),test};
 }
 export async function getVapid(env){
+  await ensurePushTables(env);
   let row=await env.DB.prepare('SELECT data FROM push_config WHERE id = 1').first();
   if(!row){const pair=await generateVapid();await env.DB.prepare('INSERT OR IGNORE INTO push_config (id,data) VALUES (1,?)').bind(JSON.stringify(pair)).run();row=await env.DB.prepare('SELECT data FROM push_config WHERE id = 1').first();}
   return JSON.parse(row.data);
 }
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
-export async function pushApi(request,env){
+export async function pushApi(request,env,fetcher=fetch){
+  try{await ensurePushTables(env);return await handlePushApi(request,env,fetcher);}
+  catch(error){
+    console.error('JP7 push failed:',error.name);
+    const database=/D1|SQLITE|no such table|database/i.test(error.message||'');
+    return response({error:database?'No se ha podido preparar el guardado de notificaciones (PUSH_DATABASE).':'No se ha podido completar el envío de la notificación (PUSH_INTERNAL).',code:database?'PUSH_DATABASE':'PUSH_INTERNAL'},503);
+  }
+}
+async function handlePushApi(request,env,fetcher){
   const path=new URL(request.url).pathname;
   if(path==='/api/push/config'&&request.method==='GET')return response({publicKey:(await getVapid(env)).publicKey,time:'23:23',timezone:'Europe/Madrid'});
   if(!['/api/push/subscribe','/api/push/test'].includes(path))return response({error:'No encontrado.'},404);
@@ -37,15 +52,22 @@ export async function pushApi(request,env){
   const now=Date.now();
   const claim=await env.DB.prepare('UPDATE push_subscriptions SET last_test = ? WHERE endpoint = ? AND last_test < ?').bind(now,body.endpoint,now-30000).run();
   if(!claim.meta.changes)return response({error:'Activa el aviso primero y espera 30 segundos entre pruebas.'},429);
-  const sent=await sendPush(body,await getVapid(env),notificationPayload(SITE,true),SITE);
+  let sent;
+  try{sent=await sendPush(body,await getVapid(env),notificationPayload(SITE,true),SITE,fetcher);}catch(error){console.error('JP7 push transport failed:',error.name);return response({error:'El servidor no ha podido conectar con el servicio de notificaciones (PUSH_TRANSPORT).',code:'PUSH_TRANSPORT'},502);}
   if(sent.status===404||sent.status===410){await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(body.endpoint).run();return response({error:'El permiso ha caducado. Desactiva el aviso y vuelve a activarlo.'},410);}
-  if(!sent.ok)return response({error:'No se ha podido enviar la prueba. Vuelve a intentarlo.'},502);
+  if(!sent.ok){
+    let reason='';try{const data=await sent.json();if(typeof data.reason==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(data.reason))reason=data.reason;}catch{}
+    const code=`PUSH_PROVIDER_${sent.status}${reason?'_'+reason:''}`;
+    console.error('JP7 push provider rejected:',code);
+    return response({error:`El servicio de notificaciones ha rechazado la prueba (${code}).`,code},502);
+  }
   return response({ok:true});
 }
 export async function sendDaily(env,date=new Date(),fetcher=fetch,currentDate=new Date()){
   const {day,time}=madridMoment(date);if(time!=='23:23')return;
   // Skip delayed cron executions: don't deliver yesterday's minute as today's alert.
   const current=madridMoment(currentDate);if(current.day!==day||current.time!=='23:23')return;
+  await ensurePushTables(env);
   const {results}=await env.DB.prepare('SELECT endpoint,data FROM push_subscriptions WHERE last_day <> ? LIMIT 20').bind(day).all();
   if(!results.length)return;
   const vapid=await getVapid(env);
@@ -60,6 +82,7 @@ export async function sendDaily(env,date=new Date(),fetcher=fetch,currentDate=ne
 export async function sendEveningPreview(env,date=new Date(),fetcher=fetch,currentDate=new Date()){
   const target=Date.parse('2026-10-08T18:12:00Z');
   if(date.getTime()<target||date.getTime()>=target+60000||currentDate.getTime()<target||currentDate.getTime()>=target+60000)return;
+  await ensurePushTables(env);
   const {results}=await env.DB.prepare('SELECT endpoint,data FROM push_subscriptions WHERE last_test < ? LIMIT 20').bind(target).all();
   if(!results.length)return;
   const vapid=await getVapid(env),payload={...notificationPayload(),url:SITE+'/#2323-test'};

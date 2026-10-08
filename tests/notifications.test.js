@@ -69,3 +69,23 @@ test('20:12 preview sends once on the requested date and preserves the nightly n
   const tomorrow=new Date('2026-10-09T18:12:00Z');await sendEveningPreview(env,tomorrow,fetcher,tomorrow);assert.equal(sends,1);
   const night=new Date('2026-10-08T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
 });
+
+test('missing push tables are created without changing personal state',async()=>{
+  const env=environment();
+  await env.DB.prepare('DROP TABLE push_subscriptions').run();await env.DB.prepare('DROP TABLE push_config').run();
+  await env.DB.prepare("INSERT INTO app_state (id,data,revision) VALUES (1,'private-state',7)").run();
+  const config=await pushApi(new Request('https://jp7.test/api/push/config'),env);assert.equal(config.status,200);
+  assert.equal((await env.DB.prepare('SELECT data,revision FROM app_state WHERE id = 1').first()).data,'private-state');assert.equal((await env.DB.prepare('SELECT data,revision FROM app_state WHERE id = 1').first()).revision,7);
+  assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
+});
+
+test('test failures distinguish provider rejection from transport failure without exposing subscription data',async()=>{
+  const env=environment(),{subscription}=receiver();
+  const req=path=>new Request('https://jp7.test/api/push/'+path,{method:'POST',body:JSON.stringify(subscription)});
+  await pushApi(req('subscribe'),env);
+  const rejected=await pushApi(req('test'),env,async()=>Response.json({reason:'BadJwtToken'},{status:403}));
+  assert.equal(rejected.status,502);assert.equal((await rejected.json()).code,'PUSH_PROVIDER_403_BadJwtToken');
+  await env.DB.prepare('UPDATE push_subscriptions SET last_test = 0').run();
+  const transport=await pushApi(req('test'),env,async()=>{throw Error('secret endpoint should not appear');});
+  const data=await transport.json();assert.equal(data.code,'PUSH_TRANSPORT');assert.doesNotMatch(JSON.stringify(data),/secret endpoint/);
+});
