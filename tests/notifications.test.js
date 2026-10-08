@@ -4,7 +4,7 @@ import {createECDH,randomBytes,hkdfSync,createDecipheriv,createPublicKey,verify}
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {generateVapid,encryptPayload,sendPush,validSubscription,encode64} from '../worker/web-push.js';
-import {madridMoment,getVapid,sendDaily,pushApi} from '../worker/notifications.js';
+import {madridMoment,getVapid,sendDaily,pushApi,sendEveningPreview} from '../worker/notifications.js';
 import worker from '../worker/index.js';
 function receiver(){const key=createECDH('prime256v1');key.generateKeys();const auth=randomBytes(16);return {key,auth,subscription:{endpoint:'https://web.push.apple.com/test-endpoint',keys:{p256dh:encode64(key.getPublicKey()),auth:encode64(auth)}}};}
 function environment(){
@@ -58,4 +58,14 @@ test('devices opt in separately; duplicate jobs send once and expired subscripti
   const next=new Date('2026-10-07T21:23:00Z');await sendDaily(env,next,fetcher,new Date('2026-10-07T21:24:00Z'));assert.equal(sends,1);
   await sendDaily(env,next,async()=>new Response(null,{status:410}),next);assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
   await pushApi(request('POST',subscription),env);await pushApi(request('DELETE',{endpoint:subscription.endpoint}),env);assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
+});
+
+test('20:12 preview sends once on the requested date and preserves the nightly notification',async()=>{
+  const env=environment(),{subscription}=receiver();
+  await pushApi(new Request('https://jp7.test/api/push/subscribe',{method:'POST',body:JSON.stringify(subscription)}),env);
+  let sends=0;const fetcher=async()=>{sends++;return new Response(null,{status:201});};
+  const time=new Date('2026-10-08T18:12:00Z');
+  await sendEveningPreview(env,time,fetcher,time);await sendEveningPreview(env,time,fetcher,time);assert.equal(sends,1);
+  const tomorrow=new Date('2026-10-09T18:12:00Z');await sendEveningPreview(env,tomorrow,fetcher,tomorrow);assert.equal(sends,1);
+  const night=new Date('2026-10-08T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
 });
