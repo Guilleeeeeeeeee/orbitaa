@@ -42,7 +42,8 @@ export async function sendPush(subscription,vapid,payload,origin,fetcher=fetch){
     authorization=`vapid t=${header}.${claims}.${signature}, k=${vapid.publicKey}`;
   }catch(error){throw new PushSendError('AUTH',error);}
   try{body=await encryptPayload(subscription,payload);}catch(error){throw new PushSendError('ENCRYPTION',error);}
+  // Workers reject redirect:error. Manual returns redirects without forwarding credentials.
   try{
-    return await fetcher(subscription.endpoint,{method:'POST',redirect:'error',headers:{Authorization:authorization,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream',TTL:'60',Urgency:'high',Topic:'jp7-2323'},body});
+    return await fetcher(subscription.endpoint,{method:'POST',redirect:'manual',headers:{Authorization:authorization,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream',TTL:'60',Urgency:'high',Topic:'jp7-2323'},body});
   }catch(error){throw new PushSendError('TRANSPORT',error);}
 }

@@ -33,7 +33,7 @@ test('VAPID request has a valid signature, correct audience, short TTL and no re
   const jwt=request.headers.Authorization.match(/t=([^,]+)/)[1];const [header,claims,signature]=jwt.split('.');
   const publicKey=createPublicKey({key:{...vapid.privateKey,d:undefined,key_ops:['verify']},format:'jwk'});
   assert.ok(verify('sha256',Buffer.from(header+'.'+claims),{key:publicKey,dsaEncoding:'ieee-p1363'},Buffer.from(signature,'base64url')));
-  assert.equal(JSON.parse(Buffer.from(claims,'base64url')).aud,'https://web.push.apple.com');assert.equal(request.headers.TTL,'60');assert.equal(request.redirect,'error');
+  assert.equal(JSON.parse(Buffer.from(claims,'base64url')).aud,'https://web.push.apple.com');assert.equal(request.headers.TTL,'60');assert.equal(request.redirect,'manual');
 });
 test('subscription validation blocks arbitrary destinations and malformed encryption keys',()=>{
   const {subscription}=receiver();assert.ok(validSubscription(subscription));for(const endpoint of ['http://web.push.apple.com/x','https://web.push.apple.com.evil.test/x','https://127.0.0.1/x','https://user@web.push.apple.com/x','https://web.push.apple.com:8443/x'])assert.equal(validSubscription({...subscription,endpoint}),false);assert.equal(validSubscription({...subscription,keys:{...subscription.keys,auth:'bad'}}),false);
