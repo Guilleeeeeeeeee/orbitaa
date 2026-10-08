@@ -89,3 +89,24 @@ test('test failures distinguish provider rejection from transport failure withou
   const transport=await pushApi(req('test'),env,async()=>{throw Error('secret endpoint should not appear');});
   const data=await transport.json();assert.equal(data.code,'PUSH_TRANSPORT');assert.doesNotMatch(JSON.stringify(data),/secret endpoint/);
 });
+
+
+test('signing and encryption failures are identified before any network request',async()=>{
+  const env=environment(),{subscription}=receiver();
+  const req=body=>new Request('https://jp7.test/api/push/test',{method:'POST',body:JSON.stringify(body)});
+  await pushApi(new Request('https://jp7.test/api/push/subscribe',{method:'POST',body:JSON.stringify(subscription)}),env);
+  const vapid=await getVapid(env);
+  await env.DB.prepare('UPDATE push_config SET data = ? WHERE id = 1').bind(JSON.stringify({...vapid,privateKey:{}})).run();
+  let calls=0;const fetcher=async()=>{calls++;return new Response(null,{status:201});};
+  const auth=await pushApi(req(subscription),env,fetcher);
+  assert.equal((await auth.json()).code,'PUSH_AUTH');assert.equal(calls,0);
+  await env.DB.prepare('UPDATE push_config SET data = ? WHERE id = 1').bind(JSON.stringify(vapid)).run();
+  await env.DB.prepare('UPDATE push_subscriptions SET last_test = 0').run();
+  // A correctly sized but off-curve point passes the shape check and fails import.
+  const point=new Uint8Array(65);point[0]=4;
+  const invalid={...subscription,keys:{...subscription.keys,p256dh:encode64(point)}};
+  assert.ok(validSubscription(invalid));
+  const encryption=await pushApi(req(invalid),env,fetcher);
+  const data=await encryption.json();assert.equal(data.code,'PUSH_ENCRYPTION');assert.equal(calls,0);
+  assert.doesNotMatch(JSON.stringify(data),/test-endpoint|privateKey|p256dh/);
+});

@@ -29,10 +29,20 @@ export async function encryptPayload(subscription,payload){
   // salt (16), record size (4, big endian), public key length (1), public key.
   return concat(salt,new Uint8Array([0,0,16,0,65]),sender,ciphertext);
 }
+export class PushSendError extends Error {
+  constructor(stage,cause){super('Push send failed',{cause});this.name='PushSendError';this.stage=stage;}
+}
 export async function sendPush(subscription,vapid,payload,origin,fetcher=fetch){
-  const header=encode64(enc.encode(JSON.stringify({typ:'JWT',alg:'ES256'})));
-  const claims=encode64(enc.encode(JSON.stringify({aud:new URL(subscription.endpoint).origin,exp:Math.floor(Date.now()/1000)+3600,sub:origin})));
-  const key=await crypto.subtle.importKey('jwk',vapid.privateKey,{name:'ECDSA',namedCurve:'P-256'},false,['sign']);
-  const signature=encode64(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},key,enc.encode(header+'.'+claims)));
-  return fetcher(subscription.endpoint,{method:'POST',redirect:'error',headers:{Authorization:`vapid t=${header}.${claims}.${signature}, k=${vapid.publicKey}`,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream',TTL:'60',Urgency:'high',Topic:'jp7-2323'},body:await encryptPayload(subscription,payload)});
+  let authorization,body;
+  try{
+    const header=encode64(enc.encode(JSON.stringify({typ:'JWT',alg:'ES256'})));
+    const claims=encode64(enc.encode(JSON.stringify({aud:new URL(subscription.endpoint).origin,exp:Math.floor(Date.now()/1000)+3600,sub:origin})));
+    const key=await crypto.subtle.importKey('jwk',vapid.privateKey,{name:'ECDSA',namedCurve:'P-256'},false,['sign']);
+    const signature=encode64(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},key,enc.encode(header+'.'+claims)));
+    authorization=`vapid t=${header}.${claims}.${signature}, k=${vapid.publicKey}`;
+  }catch(error){throw new PushSendError('AUTH',error);}
+  try{body=await encryptPayload(subscription,payload);}catch(error){throw new PushSendError('ENCRYPTION',error);}
+  try{
+    return await fetcher(subscription.endpoint,{method:'POST',redirect:'error',headers:{Authorization:authorization,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream',TTL:'60',Urgency:'high',Topic:'jp7-2323'},body});
+  }catch(error){throw new PushSendError('TRANSPORT',error);}
 }

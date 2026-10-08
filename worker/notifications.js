@@ -1,4 +1,4 @@
-import {generateVapid,validSubscription,sendPush} from './web-push.js';
+import {generateVapid,validSubscription,sendPush,PushSendError} from './web-push.js';
 const SITE='https://orbitaa.guillestyle2.workers.dev';
 export async function ensurePushTables(env){
   // Some existing Workers are deployed directly without running new D1 migrations.
@@ -52,8 +52,19 @@ async function handlePushApi(request,env,fetcher){
   const now=Date.now();
   const claim=await env.DB.prepare('UPDATE push_subscriptions SET last_test = ? WHERE endpoint = ? AND last_test < ?').bind(now,body.endpoint,now-30000).run();
   if(!claim.meta.changes)return response({error:'Activa el aviso primero y espera 30 segundos entre pruebas.'},429);
+  // Database/key loading must not be misreported as a network failure.
+  const vapid=await getVapid(env);
   let sent;
-  try{sent=await sendPush(body,await getVapid(env),notificationPayload(SITE,true),SITE,fetcher);}catch(error){console.error('JP7 push transport failed:',error.name);return response({error:'El servidor no ha podido conectar con el servicio de notificaciones (PUSH_TRANSPORT).',code:'PUSH_TRANSPORT'},502);}
+  try{sent=await sendPush(body,vapid,notificationPayload(SITE,true),SITE,fetcher);}catch(error){
+    if(!(error instanceof PushSendError))throw error;
+    const code='PUSH_'+error.stage;
+    // Only expose standard error classes, never messages containing keys or endpoints.
+    const allowed=['TypeError','OperationError','DataError','InvalidAccessError','NotSupportedError','SyntaxError','NetworkError','AbortError','TimeoutError'];
+    const errorType=allowed.includes(error.cause?.name)?error.cause.name:'Error';
+    const explanation={AUTH:'El servidor no ha podido firmar la notificación.',ENCRYPTION:'El servidor no ha podido cifrar la notificación para este dispositivo.',TRANSPORT:'El servidor no ha podido conectar con el servicio de notificaciones.'}[error.stage];
+    console.error('JP7 push send failed:',code,errorType);
+    return response({error:`${explanation} (${code} / ${errorType}).`,code,errorType},502);
+  }
   if(sent.status===404||sent.status===410){await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(body.endpoint).run();return response({error:'El permiso ha caducado. Desactiva el aviso y vuelve a activarlo.'},410);}
   if(!sent.ok){
     let reason='';try{const data=await sent.json();if(typeof data.reason==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(data.reason))reason=data.reason;}catch{}
