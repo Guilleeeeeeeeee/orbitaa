@@ -1,0 +1,10 @@
+{
+  "name": "JP7 ToDo",
+  "description": "Tus tareas de hoy. Marca cada tarea directamente desde el widget.",
+  "version": "1.0.0",
+  "icon": "checklist",
+  "color": "#ff4d9d",
+  "runInApp": true,
+  "intentInputTypes": [],
+  "remoteResource": null
+}

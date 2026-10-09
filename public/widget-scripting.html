@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#17151c">
+<title>JP7 ToDo · Scripting</title>
+<style>
+  *{box-sizing:border-box}body{margin:0;background:#100e15;color:#f8f4fa;font:16px/1.6 system-ui,sans-serif;padding:32px 22px}main{max-width:520px;margin:auto}small{color:#ff4d9d;font-weight:700;letter-spacing:2px}h1{font-size:34px;line-height:1.15}p,li{color:#c0b8c9}a{color:#ff72b2}.button{display:block;background:#ff4d9d;color:#17151c;border-radius:18px;text-decoration:none;text-align:center;padding:15px;font-weight:750;margin:25px 0}li{margin:15px 0}aside{border:1px solid #403044;border-radius:18px;padding:17px;margin:25px 0}
+</style>
+<main>
+  <small>JP7 · WIDGETS</small>
+  <h1>Tus tareas, a un toque.</h1>
+  <p>El widget de hoy, oscuro y rosa, con botones para completar tareas desde la pantalla de inicio.</p>
+  <a id="import" class="button" href="/JP7-ToDo.scripting" download>Importar en Scripting</a>
+  <ol>
+    <li>Abre esta página en <strong>Safari del iPhone</strong> y pulsa el botón para importar <strong>JP7 ToDo</strong>.</li>
+    <li>En <a href="/">JP7</a>, entra en <strong>Ajustes → Conectar Scripting</strong> y copia la clave del widget.</li>
+    <li>En Scripting, ejecuta <strong>JP7 ToDo</strong> con ▶ y pega la clave. Verás la vista previa.</li>
+    <li>Mantén pulsada la pantalla de inicio → Editar → Añadir widget → <strong>Scripting</strong>. Elige el tamaño <strong>mediano</strong>.</li>
+    <li>Mantén pulsado el widget → Editar widget → selecciona <strong>JP7 ToDo</strong>. Deja el parámetro vacío.</li>
+  </ol>
+  <aside>Para probarlo, crea una tarea con <strong>fecha de hoy</strong> en JP7 y toca su círculo en el widget de la pantalla de inicio. El círculo guarda la tarea; el <strong>+</strong> abre JP7. La flecha pide una actualización.</aside>
+  <p>Si la importación no se abre, <a href="/JP7-ToDo.scripting" download>descarga el archivo</a> y ábrelo desde Archivos con Scripting. También tienes <a href="/JP7-ToDo.zip" download>la versión ZIP</a> para el menú de importación.</p>
+  <p>Al generar una clave nueva, la anterior deja de funcionar. Si conservas la clave que usabas en Scriptable, puedes usarla aquí sin generar otra.</p>
+  <p>iOS decide cuándo refrescar el widget; una actualización puede tardar unos segundos. Para mantener el rosa, elige iconos y widgets en modo de color normal.</p>
+</main>
+<script>
+  document.querySelector('#import').href='scripting://import_scripts?urls='+encodeURIComponent(JSON.stringify([new URL('/JP7-ToDo.zip',location.origin).href]));
+</script>
+</html>
