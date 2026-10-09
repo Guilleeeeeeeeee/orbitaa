@@ -7,22 +7,22 @@ import vm from 'node:vm';
 const root=new URL('../widgets/scripting/',import.meta.url).pathname;
 const token='a'.repeat(64),key='jp7-todo-token-v1';
 async function runtime(entry,extra='',options={}){
-  const stored=new Map(options.noToken?[]:[[key,token]]),storage=new Map(),calls=[],intents=new Map(),alerts=[];let rendered,reloads=0,previews=0;
+  const stored=new Map(options.noToken?[]:[[key,token]]),storage=new Map(),calls=[],intents=new Map(),alerts=[];let rendered,reloads=0,previews=0,prompts=0;
   const api={
     Keychain:{get:k=>stored.get(k)??null,set:(k,v)=>{stored.set(k,v);return true;},remove:k=>stored.delete(k)},
     Storage:{get:k=>storage.get(k)??null,set:(k,v)=>storage.set(k,v),remove:k=>storage.delete(k)},
     AppIntentProtocol:{AppIntent:'background'},AppIntentManager:{register:def=>{intents.set(def.name,def);return params=>({name:def.name,params});}},
     Widget:{reloadAll:()=>reloads++,present:node=>rendered=node,preview:async()=>previews++},
-    Dialog:{prompt:async()=>options.prompt===null?null:token,alert:async value=>alerts.push(value)},Script:{exit:()=>{}},
+    Dialog:{prompt:async()=>{prompts++;return options.prompt===null?null:token;},alert:async value=>alerts.push(value)},Script:{exit:()=>{}},
     Button:'Button',HStack:'HStack',VStack:'VStack',Text:'Text',Image:'Image',Spacer:'Spacer',Link:'Link',
   };
   const source=readFileSync(root+entry,'utf8')+'\n'+extra;
-  const result=await build({stdin:{contents:source,resolveDir:root,sourcefile:entry,loader:entry.endsWith('tsx')?'tsx':'ts'},bundle:true,write:false,format:'iife',jsxFactory:'__jsx',plugins:[{name:'scripting-mock',setup(b){b.onResolve({filter:/^scripting$/},()=>({path:'scripting',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const {Keychain,Storage,AppIntentProtocol,AppIntentManager,Widget,Button,HStack,VStack,Text,Image,Spacer,Link,Dialog,Script}=globalThis.api;'}));}}]});
-  const context=vm.createContext({api,console,Date,Error,JSON,globalThis:null,__jsx:(type,props,...children)=>typeof type==='function'?type({...props,children}):({type,props:props||{},children}),fetch:async(url,init)=>{calls.push({url,init});return options.fetch?options.fetch(url,init):{ok:true,status:200,json:async()=>({day:'2026-10-09',pending:1,tasks:[{id:'task_1',title:'Probar JP7',priority:'high'}]})};}});
+  const result=await build({stdin:{contents:source,resolveDir:root,sourcefile:entry,loader:entry.endsWith('tsx')?'tsx':'ts'},bundle:true,write:false,format:'iife',jsxFactory:'__jsx',plugins:[{name:'scripting-mock',setup(b){b.onResolve({filter:/^scripting$/},()=>({path:'scripting',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const {AppIntentProtocol,AppIntentManager,Widget,Button,HStack,VStack,Text,Image,Spacer,Link,Script}=globalThis.api;'}));}}]});
+  const context=vm.createContext({api,Keychain:api.Keychain,Storage:api.Storage,Dialog:api.Dialog,console,Date,Error,JSON,globalThis:null,__jsx:(type,props,...children)=>typeof type==='function'?type({...props,children}):({type,props:props||{},children}),fetch:async(url,init)=>{calls.push({url,init});return options.fetch?options.fetch(url,init):{ok:true,status:200,json:async()=>({day:'2026-10-09',pending:1,tasks:[{id:'task_1',title:'Probar JP7',priority:'high'}]})};}});
   context.globalThis=context;
   new vm.Script(result.outputFiles[0].text).runInContext(context);
   await new Promise(resolve=>setImmediate(resolve));
-  return {stored,storage,calls,intents,alerts,get previews(){return previews;},get rendered(){return rendered;},get reloads(){return reloads;},context};
+  return {stored,storage,calls,intents,alerts,get prompts(){return prompts;},get previews(){return previews;},get rendered(){return rendered;},get reloads(){return reloads;},context};
 }
 function nodes(node,type){if(!node||typeof node!=='object')return [];if(Array.isArray(node))return node.flatMap(x=>nodes(x,type));return [...(node.type===type?[node]:[]),...nodes(node.children,type)];}
 
@@ -61,6 +61,7 @@ test('Scripting invalid task ids never send a completion request',async()=>{
 });
 test('Scripting setup validates the private widget key before saving and previewing',async()=>{
   const r=await runtime('index.tsx','',{noToken:true});
+  assert.equal(r.prompts,1);
   assert.equal(r.stored.get(key),token);
   assert.equal(r.previews,1);
   assert.equal(r.calls.length,1);

@@ -1,4 +1,4 @@
-import { Keychain, Storage } from "scripting"
+// Keychain and Storage are provided by the Scripting runtime as globals.
 
 export const BASE = "https://orbitaa.guillestyle2.workers.dev"
 export const TOKEN_KEY = "jp7-todo-token-v1"

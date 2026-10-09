@@ -1,4 +1,4 @@
-import { Dialog, Keychain, Script, Widget } from "scripting"
+import { Script, Widget } from "scripting"
 import { TOKEN_KEY, today, clearError } from "./model"
 
 async function main() {
