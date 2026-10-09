@@ -60,14 +60,14 @@ test('devices opt in separately; duplicate jobs send once and expired subscripti
   await pushApi(request('POST',subscription),env);await pushApi(request('DELETE',{endpoint:subscription.endpoint}),env);assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
 });
 
-test('20:12 preview sends once on the requested date and preserves the nightly notification',async()=>{
+test('17:35 preview sends once on the requested date and preserves the nightly notification',async()=>{
   const env=environment(),{subscription}=receiver();
   await pushApi(new Request('https://jp7.test/api/push/subscribe',{method:'POST',body:JSON.stringify(subscription)}),env);
   let sends=0;const fetcher=async()=>{sends++;return new Response(null,{status:201});};
-  const time=new Date('2026-10-08T18:12:00Z');
+  const time=new Date('2026-10-09T15:35:00Z');
   await sendEveningPreview(env,time,fetcher,time);await sendEveningPreview(env,time,fetcher,time);assert.equal(sends,1);
-  const tomorrow=new Date('2026-10-09T18:12:00Z');await sendEveningPreview(env,tomorrow,fetcher,tomorrow);assert.equal(sends,1);
-  const night=new Date('2026-10-08T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
+  const tomorrow=new Date('2026-10-10T15:35:00Z');await sendEveningPreview(env,tomorrow,fetcher,tomorrow);assert.equal(sends,1);
+  const night=new Date('2026-10-09T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
 });
 
 test('missing push tables are created without changing personal state',async()=>{

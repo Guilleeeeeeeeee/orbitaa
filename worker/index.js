@@ -32,7 +32,7 @@ export default {
       const secret=env.ORBITA_PASSWORD;
       const configured=typeof secret==='string'&&secret.length>=16;
       if(request.method!=='GET' && request.headers.get('origin')!==url.origin)return json({error:'Origen no permitido.'},403);
-      if(url.pathname==='/api/session'&&request.method==='GET')return json({configured,authenticated:configured&&await authenticated(request,secret)},200,{'X-JP7-Push-Version':'4'});
+      if(url.pathname==='/api/session'&&request.method==='GET')return json({configured,authenticated:configured&&await authenticated(request,secret)},200,{'X-JP7-Push-Version':'5'});
       if(!configured)return json({error:'Falta configurar la clave privada en Cloudflare (mínimo 16 caracteres).'},503);
       if(url.pathname==='/api/login'&&request.method==='POST') {
         const ip=request.headers.get('CF-Connecting-IP')||'local';

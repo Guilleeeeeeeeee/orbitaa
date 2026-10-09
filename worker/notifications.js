@@ -88,15 +88,15 @@ export async function sendDaily(env,date=new Date(),fetcher=fetch,currentDate=ne
   }
 }
 
-// One-off preview requested for 8 October, 20:12 in Barcelona (18:12 UTC).
+// One-off preview requested for 9 October, 17:35 in Barcelona (15:35 UTC).
 // Uses the test timestamp, leaving the daily 23:23 delivery record untouched.
 export async function sendEveningPreview(env,date=new Date(),fetcher=fetch,currentDate=new Date()){
-  const target=Date.parse('2026-10-08T18:12:00Z');
+  const target=Date.parse('2026-10-09T15:35:00Z');
   if(date.getTime()<target||date.getTime()>=target+60000||currentDate.getTime()<target||currentDate.getTime()>=target+60000)return;
   await ensurePushTables(env);
   const {results}=await env.DB.prepare('SELECT endpoint,data FROM push_subscriptions WHERE last_test < ? LIMIT 20').bind(target).all();
   if(!results.length)return;
-  const vapid=await getVapid(env),payload={...notificationPayload(),url:SITE+'/#2323-test'};
+  const vapid=await getVapid(env),payload=notificationPayload(SITE,true);
   for(const row of results){
     const claimed=await env.DB.prepare('UPDATE push_subscriptions SET last_test = ? WHERE endpoint = ? AND last_test < ?').bind(currentDate.getTime(),row.endpoint,target).run();if(!claimed.meta.changes)continue;
     try{const sent=await sendPush(JSON.parse(row.data),vapid,payload,SITE,fetcher);if(sent.status===404||sent.status===410)await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(row.endpoint).run();else if(!sent.ok)console.error('JP7 preview push rejected:',sent.status);}catch{console.error('JP7 preview push delivery failed');}
