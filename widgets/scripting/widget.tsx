@@ -44,9 +44,13 @@ function ToDo({ data, error }: { data: Today | null; error: string | null }) {
   </HStack>
 }
 
-let data: Today | null = null
-let error: string | null = actionError()
-try { data = await today() } catch (failure) {
-  error = failure instanceof Error ? failure.message : "No se ha podido cargar JP7. Pulsa la flecha para reintentar."
+async function renderWidget() {
+  let data: Today | null = null
+  let error: string | null = actionError()
+  try { data = await today() } catch (failure) {
+    error = failure instanceof Error ? failure.message : "No se ha podido cargar JP7. Pulsa la flecha para reintentar."
+  }
+  Widget.present(<ToDo data={data} error={error} />, { policy: "after", date: new Date(Date.now() + 5 * 60 * 1000) })
 }
-Widget.present(<ToDo data={data} error={error} />, { policy: "after", date: new Date(Date.now() + 5 * 60 * 1000) })
+
+renderWidget()

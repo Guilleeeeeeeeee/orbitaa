@@ -26,5 +26,4 @@ async function main() {
     await Dialog.alert({ title: "JP7 ToDo", message: error instanceof Error ? error.message : "No se ha podido conectar. Comprueba la conexión." })
   }
 }
-await main()
-Script.exit()
+main().finally(() => Script.exit())

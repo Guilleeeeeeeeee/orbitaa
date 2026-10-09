@@ -17,10 +17,11 @@ async function runtime(entry,extra='',options={}){
     Button:'Button',HStack:'HStack',VStack:'VStack',Text:'Text',Image:'Image',Spacer:'Spacer',Link:'Link',
   };
   const source=readFileSync(root+entry,'utf8')+'\n'+extra;
-  const result=await build({stdin:{contents:source,resolveDir:root,sourcefile:entry,loader:entry.endsWith('tsx')?'tsx':'ts'},bundle:true,write:false,format:'esm',jsxFactory:'__jsx',plugins:[{name:'scripting-mock',setup(b){b.onResolve({filter:/^scripting$/},()=>({path:'scripting',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const {Keychain,Storage,AppIntentProtocol,AppIntentManager,Widget,Button,HStack,VStack,Text,Image,Spacer,Link,Dialog,Script}=globalThis.api;'}));}}]});
+  const result=await build({stdin:{contents:source,resolveDir:root,sourcefile:entry,loader:entry.endsWith('tsx')?'tsx':'ts'},bundle:true,write:false,format:'iife',jsxFactory:'__jsx',plugins:[{name:'scripting-mock',setup(b){b.onResolve({filter:/^scripting$/},()=>({path:'scripting',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const {Keychain,Storage,AppIntentProtocol,AppIntentManager,Widget,Button,HStack,VStack,Text,Image,Spacer,Link,Dialog,Script}=globalThis.api;'}));}}]});
   const context=vm.createContext({api,console,Date,Error,JSON,globalThis:null,__jsx:(type,props,...children)=>typeof type==='function'?type({...props,children}):({type,props:props||{},children}),fetch:async(url,init)=>{calls.push({url,init});return options.fetch?options.fetch(url,init):{ok:true,status:200,json:async()=>({day:'2026-10-09',pending:1,tasks:[{id:'task_1',title:'Probar JP7',priority:'high'}]})};}});
   context.globalThis=context;
-  await new vm.Script('(async()=>{'+result.outputFiles[0].text.replace(/export\s*\{[^}]*\};?\s*$/,'')+'})()').runInContext(context);
+  new vm.Script(result.outputFiles[0].text).runInContext(context);
+  await new Promise(resolve=>setImmediate(resolve));
   return {stored,storage,calls,intents,alerts,get previews(){return previews;},get rendered(){return rendered;},get reloads(){return reloads;},context};
 }
 function nodes(node,type){if(!node||typeof node!=='object')return [];if(Array.isArray(node))return node.flatMap(x=>nodes(x,type));return [...(node.type===type?[node]:[]),...nodes(node.children,type)];}
@@ -54,7 +55,7 @@ test('Scripting missing or revoked key displays reconnection rather than zero pe
   assert.match(JSON.stringify(revoked.rendered),/Vuelve a conectar/);
 });
 test('Scripting invalid task ids never send a completion request',async()=>{
-  const r=await runtime('model.ts','globalThis.result=await completeTask("../bad");');
+  const r=await runtime('model.ts','completeTask("../bad").then(value=>globalThis.result=value);');
   assert.equal(r.context.result,false);
   assert.equal(r.calls.length,0);
 });
