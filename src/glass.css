@@ -406,3 +406,5 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 
 @keyframes jp7-led{to{transform:translateX(-50%)}}
 @media(max-width:480px){.moment-actions>.button{flex:1 1 100%;width:100%}.moment-actions>.text-button{margin:0 auto}.moment-dialog{padding-inline:18px}}
 @media(prefers-reduced-motion:reduce){.led-marquee{animation:none;transform:none}.led-panel{overflow-x:auto}.led-message+ .led-message{display:none}}
+#widget-setup input{width:100%;min-width:0;font-family:monospace;font-size:12px;user-select:all;margin:6px 0}
+#widget-setup a{color:var(--accent,#ff4faa);text-decoration:underline}

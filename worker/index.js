@@ -1,5 +1,6 @@
 import {withConfirmedVisits,memoryPhotos} from '../shared/atlas-places.js';
 import {pushApi,sendDaily,sendEveningPreview} from './notifications.js';
+import {widgetApi,widgetToken} from './widgets.js';
 const encoder = new TextEncoder();
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 const empty = () => ({places:[],habits:[],tasks:[],entries:[]});
@@ -31,6 +32,7 @@ export default {
     try {
       const secret=env.ORBITA_PASSWORD;
       const configured=typeof secret==='string'&&secret.length>=16;
+      if(url.pathname.startsWith('/api/widget/')&&url.pathname!=='/api/widget/token')return await widgetApi(request,env);
       if(request.method!=='GET' && request.headers.get('origin')!==url.origin)return json({error:'Origen no permitido.'},403);
       if(url.pathname==='/api/session'&&request.method==='GET')return json({configured,authenticated:configured&&await authenticated(request,secret)},200,{'X-JP7-Push-Version':'5'});
       if(!configured)return json({error:'Falta configurar la clave privada en Cloudflare (mínimo 16 caracteres).'},503);
@@ -48,6 +50,7 @@ export default {
         return json({ok:true},200,{'Set-Cookie':`orbita_session=${token}; HttpOnly; ${url.protocol==='https:'?'Secure; ':''}SameSite=Strict; Path=/; Max-Age=2592000`});
       }
       if(!await authenticated(request,secret))return json({error:'Inicia sesión para abrir tu espacio.'},401);
+      if(url.pathname==='/api/widget/token')return await widgetToken(request,env);
       if(url.pathname.startsWith('/api/push/'))return await pushApi(request,env);
       if(url.pathname==='/api/logout'&&request.method==='POST')return json({ok:true},200,{'Set-Cookie':'orbita_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure'});
       if(url.pathname==='/api/state'&&request.method==='GET') {
