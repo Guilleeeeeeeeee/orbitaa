@@ -11,7 +11,7 @@
   <small>JP7 · WIDGETS</small>
   <h1>Tus tareas, a un toque.</h1>
   <p>El widget de hoy, oscuro y rosa, con botones para completar tareas desde la pantalla de inicio.</p>
-  <a id="import" class="button" href="/JP7-ToDo.scripting" download>Importar en Scripting</a>
+  <a id="import" class="button" href="scripting://import_scripts?urls=%5B%22https%3A%2F%2Forbitaa.guillestyle2.workers.dev%2FJP7-ToDo.zip%22%5D">Importar en Scripting</a>
   <ol>
     <li>Abre esta página en <strong>Safari del iPhone</strong> y pulsa el botón para importar <strong>JP7 ToDo</strong>.</li>
     <li>En <a href="/">JP7</a>, entra en <strong>Ajustes → Conectar Scripting</strong> y copia la clave del widget.</li>
@@ -24,7 +24,4 @@
   <p>Al generar una clave nueva, la anterior deja de funcionar. Si conservas la clave que usabas en Scriptable, puedes usarla aquí sin generar otra.</p>
   <p>iOS decide cuándo refrescar el widget; una actualización puede tardar unos segundos. Para mantener el rosa, elige iconos y widgets en modo de color normal.</p>
 </main>
-<script>
-  document.querySelector('#import').href='scripting://import_scripts?urls='+encodeURIComponent(JSON.stringify([new URL('/JP7-ToDo.zip',location.origin).href]));
-</script>
 </html>
