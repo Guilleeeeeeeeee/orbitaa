@@ -42,3 +42,28 @@ test('new widget key replaces old key and password changes invalidate the connec
   env.ORBITA_PASSWORD='a-new-private-password';
   assert.equal((await worker.fetch(req('today','GET',{Authorization:'Bearer '+second.token}),env)).status,401);
 });
+
+test('habit widgets mark and unmark today idempotently without editing history or other app data',async()=>{
+  const env=environment(),day=madridMoment().day;
+  const state={places:[],habits:[{id:'gym',name:'Gym',icon:'dumbbell',days:['2020-01-01']}],entries:[{text:'Private diary'}],tasks:[{id:'task',title:'Private task',due:day,done:false}]};
+  await env.DB.prepare('INSERT INTO app_state (id,data,revision) VALUES (1,?,1)').bind(JSON.stringify(state)).run();
+  assert.equal((await worker.fetch(req('habits'),env)).status,401);
+  assert.equal((await worker.fetch(req('habit','POST',{}, {id:'gym',day,done:true}),env)).status,401);
+  const cookie=await login(env),{token}=await(await worker.fetch(req('token','POST',{Origin:origin,Cookie:cookie}),env)).json(),auth={Authorization:'Bearer '+token};
+  const summary=await(await worker.fetch(req('habits','GET',auth),env)).json();
+  assert.deepEqual(summary,{day,habits:[{id:'gym',name:'Gym',icon:'dumbbell',done:false}],completed:0,total:1});
+  assert.doesNotMatch(JSON.stringify(summary),/2020-01-01|Private/);
+  assert.equal((await worker.fetch(req('habit','POST',auth,{id:'gym',day:'2000-01-01',done:true}),env)).status,409);
+  assert.equal((await worker.fetch(req('habit','POST',auth,{id:'gym',day,done:'true'}),env)).status,400);
+  assert.equal((await worker.fetch(req('habit','POST',auth,{id:'missing',day,done:true}),env)).status,404);
+  for(let i=0;i<2;i++)assert.equal((await worker.fetch(req('habit','POST',auth,{id:'gym',day,done:true}),env)).status,200);
+  let saved=await env.DB.prepare('SELECT data,revision FROM app_state WHERE id = 1').first();
+  assert.equal(saved.revision,2);assert.deepEqual(JSON.parse(saved.data).habits[0].days,['2020-01-01',day]);
+  assert.equal((await(await worker.fetch(req('habits','GET',auth),env)).json()).completed,1);
+  for(let i=0;i<2;i++)assert.equal((await worker.fetch(req('habit','POST',auth,{id:'gym',day,done:false}),env)).status,200);
+  saved=await env.DB.prepare('SELECT data,revision FROM app_state WHERE id = 1').first();
+  assert.equal(saved.revision,3);assert.deepEqual(JSON.parse(saved.data),state);
+  await worker.fetch(req('token','DELETE',{Origin:origin,Cookie:cookie}),env);
+  assert.equal((await worker.fetch(req('habits','GET',auth),env)).status,401);
+  assert.equal((await worker.fetch(req('habit','POST',auth,{id:'gym',day,done:true}),env)).status,401);
+});

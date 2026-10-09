@@ -14,7 +14,7 @@ export async function widgetToken(request,env){
 }
 export async function widgetApi(request,env){
   const path=new URL(request.url).pathname;
-  if(!['/api/widget/today','/api/widget/complete'].includes(path))return json({error:'No encontrado.'},404);
+  if(!['/api/widget/today','/api/widget/complete','/api/widget/habits','/api/widget/habit'].includes(path))return json({error:'No encontrado.'},404);
   const token=(request.headers.get('Authorization')||'').match(/^Bearer ([a-f0-9]{64})$/)?.[1];
   if(!token||typeof env.ORBITA_PASSWORD!=='string'||env.ORBITA_PASSWORD.length<16)return json({error:'Vuelve a conectar el widget desde JP7.'},401);
   await table(env);
@@ -27,6 +27,28 @@ export async function widgetApi(request,env){
     const row=await env.DB.prepare('SELECT data FROM app_state WHERE id = 1').first();
     const tasks=(row?JSON.parse(row.data).tasks:[]).filter(t=>!t.done&&t.due===day).sort((a,b)=>Number(b.priority==='high')-Number(a.priority==='high')).map(({id,title,priority})=>({id,title,priority}));
     return json({day,tasks,pending:tasks.length,updatedAt:new Date().toISOString()});
+  }
+  if(path==='/api/widget/habits'&&request.method==='GET'){
+    const row=await env.DB.prepare('SELECT data FROM app_state WHERE id = 1').first();
+    const habits=(row?JSON.parse(row.data).habits:[]).map(({id,name,icon,days})=>({id,name,icon,done:days.includes(day)}));
+    return json({day,habits,completed:habits.filter(h=>h.done).length,total:habits.length});
+  }
+  if(path==='/api/widget/habit'&&request.method==='POST'){
+    const raw=await request.text();if(raw.length>300)return json({error:'Datos no válidos.'},400);
+    let body;try{body=JSON.parse(raw);}catch{return json({error:'Datos no válidos.'},400);}
+    if(typeof body.id!=='string'||! /^[A-Za-z0-9_-]{1,100}$/.test(body.id)||typeof body.done!=='boolean')return json({error:'Datos no válidos.'},400);
+    if(body.day!==day)return json({error:'El día ha cambiado. Actualiza el widget antes de marcar.'},409);
+    for(let attempt=0;attempt<4;attempt++){
+      const row=await env.DB.prepare('SELECT data,revision FROM app_state WHERE id = 1').first();
+      const state=row?JSON.parse(row.data):null,habit=state?.habits.find(h=>h.id===body.id);
+      if(!habit)return json({error:'Este hábito ya no existe.'},404);
+      if(habit.days.includes(day)===body.done)return json({ok:true});
+      if(body.done&&habit.days.length>=10000)return json({error:'El historial de este hábito está lleno.'},400);
+      habit.days=body.done?[...habit.days,day]:habit.days.filter(d=>d!==day);
+      const result=await env.DB.prepare('UPDATE app_state SET data = ?, revision = revision + 1 WHERE id = 1 AND revision = ?').bind(JSON.stringify(state),row.revision).run();
+      if(result.meta.changes)return json({ok:true});
+    }
+    return json({error:'Hay otros cambios guardándose. Vuelve a intentarlo.'},409);
   }
   if(path==='/api/widget/complete'&&request.method==='POST'){
     const raw=await request.text();if(raw.length>300)return json({error:'Datos no válidos.'},400);

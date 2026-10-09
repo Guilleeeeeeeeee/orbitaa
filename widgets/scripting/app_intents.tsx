@@ -1,5 +1,5 @@
 import { AppIntentManager, AppIntentProtocol, Widget } from "scripting"
-import { completeTask, clearError } from "./model"
+import { completeTask, clearError, setHabit } from "./model"
 
 export const CompleteTask = AppIntentManager.register({
   name: "JP7CompleteTask",
@@ -15,6 +15,15 @@ export const RefreshTasks = AppIntentManager.register({
   protocol: AppIntentProtocol.AppIntent,
   perform: async () => {
     clearError()
+    Widget.reloadAll()
+  },
+})
+
+export const SetHabit = AppIntentManager.register({
+  name: "JP7SetHabit",
+  protocol: AppIntentProtocol.AppIntent,
+  perform: async (params: { id: string; day: string; done: boolean }) => {
+    await setHabit(params.id, params.day, params.done)
     Widget.reloadAll()
   },
 })

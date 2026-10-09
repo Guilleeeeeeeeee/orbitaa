@@ -12,12 +12,12 @@ async function runtime(entry,extra='',options={}){
     Keychain:{get:k=>stored.get(k)??null,set:(k,v)=>{stored.set(k,v);return true;},remove:k=>stored.delete(k)},
     Storage:{get:k=>storage.get(k)??null,set:(k,v)=>storage.set(k,v),remove:k=>storage.delete(k)},
     AppIntentProtocol:{AppIntent:'background'},AppIntentManager:{register:def=>{intents.set(def.name,def);return params=>({name:def.name,params});}},
-    Widget:{reloadAll:()=>reloads++,present:node=>rendered=node,preview:async()=>previews++},
+    Widget:{family:options.family||"systemMedium",parameter:options.parameter||"",reloadAll:()=>reloads++,present:node=>rendered=node,preview:async()=>previews++},
     Dialog:{prompt:async()=>{prompts++;return options.prompt===null?null:token;},alert:async value=>alerts.push(value)},Script:{exit:()=>{}},
-    Button:'Button',HStack:'HStack',VStack:'VStack',Text:'Text',Image:'Image',Spacer:'Spacer',Link:'Link',
+    Button:'Button',HStack:'HStack',VStack:'VStack',Text:'Text',Image:'Image',Spacer:'Spacer',Link:'Link',ZStack:'ZStack',AccessoryWidgetBackground:'AccessoryWidgetBackground',
   };
   const source=readFileSync(root+entry,'utf8')+'\n'+extra;
-  const result=await build({stdin:{contents:source,resolveDir:root,sourcefile:entry,loader:entry.endsWith('tsx')?'tsx':'ts'},bundle:true,write:false,format:'iife',jsxFactory:'__jsx',plugins:[{name:'scripting-mock',setup(b){b.onResolve({filter:/^scripting$/},()=>({path:'scripting',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const {AppIntentProtocol,AppIntentManager,Widget,Button,HStack,VStack,Text,Image,Spacer,Link,Script}=globalThis.api;'}));}}]});
+  const result=await build({stdin:{contents:source,resolveDir:root,sourcefile:entry,loader:entry.endsWith('tsx')?'tsx':'ts'},bundle:true,write:false,format:'iife',jsxFactory:'__jsx',plugins:[{name:'scripting-mock',setup(b){b.onResolve({filter:/^scripting$/},()=>({path:'scripting',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const {AppIntentProtocol,AppIntentManager,Widget,Button,HStack,VStack,Text,Image,Spacer,Link,ZStack,AccessoryWidgetBackground,Script}=globalThis.api;'}));}}]});
   const context=vm.createContext({api,Keychain:api.Keychain,Storage:api.Storage,Dialog:api.Dialog,console,Date,Error,JSON,globalThis:null,__jsx:(type,props,...children)=>typeof type==='function'?type({...props,children}):({type,props:props||{},children}),fetch:async(url,init)=>{calls.push({url,init});return options.fetch?options.fetch(url,init):{ok:true,status:200,json:async()=>({day:'2026-10-09',pending:1,tasks:[{id:'task_1',title:'Probar JP7',priority:'high'}]})};}});
   context.globalThis=context;
   new vm.Script(result.outputFiles[0].text).runInContext(context);
@@ -71,4 +71,29 @@ test('Scripting setup validates the private widget key before saving and preview
   assert.equal(rejected.alerts[0].message,'Clave no válida.');
   const canceled=await runtime('index.tsx','',{noToken:true,prompt:null});
   assert.equal(canceled.calls.length,0);
+});
+
+test('lock screen counter shows pending tasks and never exposes completion controls',async()=>{
+  for(const family of ['accessoryCircular','accessoryRectangular','accessoryInline']){
+    const r=await runtime('widget.tsx','',{family});
+    assert.equal(nodes(r.rendered,'Button').length,0);
+    assert.match(JSON.stringify(r.rendered),/1/);
+    assert.equal(r.calls.length,1);
+    assert.match(r.calls[0].url,/widget\/today$/);
+  }
+  const offline=await runtime('widget.tsx','',{family:'accessoryCircular',noToken:true});
+  assert.match(JSON.stringify(offline.rendered),/—/);
+});
+test('habit mode uses native set intents including the rendered date and desired state',async()=>{
+  for(const parameter of ['habitos',JSON.stringify({view:'habits'})]){
+    const r=await runtime('widget.tsx','',{parameter,fetch:async(url)=>({ok:true,status:200,json:async()=>url.endsWith('/habits')?{day:'2026-10-09',completed:1,total:2,habits:[{id:'gym',name:'Gym',icon:'dumbbell',done:false},{id:'work',name:'Trabajo',icon:'briefcase-business',done:true}]}:{ok:true}})});
+    const buttons=nodes(r.rendered,'Button').filter(b=>b.props.intent.name==='JP7SetHabit');
+    assert.equal(buttons.length,2);
+    assert.equal(buttons[0].props.intent.params.done,true);
+    assert.equal(buttons[1].props.intent.params.done,false);
+    await r.intents.get('JP7SetHabit').perform(buttons[0].props.intent.params);
+    assert.equal(r.calls[1].init.body,JSON.stringify({id:'gym',day:'2026-10-09',done:true}));
+    assert.equal(r.reloads,1);
+    assert.equal(JSON.stringify(r.rendered).includes(token),false);
+  }
 });

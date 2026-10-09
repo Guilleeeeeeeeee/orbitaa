@@ -21,7 +21,13 @@ async function main() {
     }
     clearError()
     Widget.reloadAll()
-    await Widget.preview({ family: "systemMedium" })
+    await Widget.preview({
+      family: "systemMedium",
+      parameters: {
+        options: { "ToDo": JSON.stringify({ view: "todo" }), "Hábitos": JSON.stringify({ view: "habits" }) },
+        default: "ToDo",
+      },
+    })
   } catch (error) {
     await Dialog.alert({ title: "JP7 ToDo", message: error instanceof Error ? error.message : "No se ha podido conectar. Comprueba la conexión." })
   }

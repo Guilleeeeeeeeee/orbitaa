@@ -1,7 +1,7 @@
 {
   "name": "JP7 ToDo",
-  "description": "Tus tareas de hoy. Marca cada tarea directamente desde el widget.",
-  "version": "1.0.0",
+  "description": "ToDo, hábitos interactivos y contador de tareas en la pantalla de bloqueo.",
+  "version": "1.1.0",
   "icon": "checklist",
   "color": "#ff4d9d",
   "runInApp": true,
