@@ -107,10 +107,9 @@ export async function sendFinalScheduled(env,date=new Date(),fetcher=fetch,curre
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_oneoffs (endpoint TEXT NOT NULL, delivery TEXT NOT NULL, PRIMARY KEY(endpoint,delivery))').run();
   for(const row of results)await sendFinalDevice(env,row,fetcher);
 }
-async function sendFinalDevice(env,row,fetcher){
+async function sendFinalDevice(env,row,fetcher,delivery='scheduled-2323-2026-10-10-1219'){
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_oneoffs (endpoint TEXT NOT NULL, delivery TEXT NOT NULL, PRIMARY KEY(endpoint,delivery))').run();
   const subscription=JSON.parse(row.data),endpoint=row.endpoint||subscription.endpoint;
-  const delivery='scheduled-2323-2026-10-10-1219';
   const vapid=await getVapid(env);
   const claimed=await env.DB.prepare('INSERT OR IGNORE INTO push_oneoffs (endpoint,delivery) VALUES (?,?)').bind(endpoint,delivery).run();
   if(!claimed.meta.changes)return {skipped:true};
@@ -125,4 +124,13 @@ async function sendFinalDevice(env,row,fetcher){
     console.error('JP7 scheduled alert delivery failed:',code);
     return {error:code};
   }
+}
+
+export async function sendCloudflareVerification(env,date=new Date(),fetcher=fetch,currentDate=new Date()){
+  // This verification is triggered exclusively by Cloudflare, never by opening JP7.
+  const due=Date.parse('2026-10-10T11:05:00Z'),expires=Date.parse('2026-10-10T11:20:00Z');
+  if(date.getTime()<due||date.getTime()>=expires||currentDate.getTime()<due||currentDate.getTime()>=expires)return;
+  await ensurePushTables(env);
+  const {results}=await env.DB.prepare('SELECT endpoint,data FROM push_subscriptions LIMIT 20').all();
+  for(const row of results)await sendFinalDevice(env,row,fetcher,'cloudflare-2323-2026-10-10-1305');
 }

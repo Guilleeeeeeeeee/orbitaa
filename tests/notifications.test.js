@@ -4,7 +4,7 @@ import {createECDH,randomBytes,hkdfSync,createDecipheriv,createPublicKey,verify}
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {generateVapid,encryptPayload,sendPush,validSubscription,encode64} from '../worker/web-push.js';
-import {madridMoment,getVapid,sendDaily,sendFinalScheduled,pushApi} from '../worker/notifications.js';
+import {madridMoment,getVapid,sendDaily,sendFinalScheduled,sendCloudflareVerification,pushApi} from '../worker/notifications.js';
 import worker from '../worker/index.js';
 function receiver(){const key=createECDH('prime256v1');key.generateKeys();const auth=randomBytes(16);return {key,auth,subscription:{endpoint:'https://web.push.apple.com/test-endpoint',keys:{p256dh:encode64(key.getPublicKey()),auth:encode64(auth)}}};}
 function environment(){
@@ -157,4 +157,19 @@ test('app-open fallback exposes delivery errors without marking failed alerts as
   assert.equal(failed.status,502);assert.equal((await failed.json()).code,'PUSH_PROVIDER_403');
   const retry=await pushApi(req('real-preview'),env,async()=>new Response(null,{status:201}),due);
   assert.equal((await retry.json()).sent,true);
+});
+
+test('Cloudflare-only verification waits until 13:05 Madrid and is independent of app-open and nightly alerts',async()=>{
+  const env=environment(),{subscription}=receiver();
+  const req=path=>new Request('https://jp7.test/api/push/'+path,{method:'POST',body:JSON.stringify(subscription)});
+  await pushApi(req('subscribe'),env);
+  let sends=0;const fetcher=async()=>{sends++;return new Response(null,{status:201});};
+  const before=new Date('2026-10-10T11:04:59Z'),due=new Date('2026-10-10T11:05:00Z');
+  assert.equal(madridMoment(due).time,'13:05');
+  await sendCloudflareVerification(env,before,fetcher,before);assert.equal(sends,0);
+  await pushApi(req('real-preview'),env,fetcher,due);assert.equal(sends,0);
+  await sendCloudflareVerification(env,due,fetcher,due);await sendCloudflareVerification(env,due,fetcher,due);assert.equal(sends,1);
+  const expired=new Date('2026-10-10T11:20:00Z');await sendCloudflareVerification(env,expired,fetcher,expired);assert.equal(sends,1);
+  const tomorrow=new Date('2026-10-11T11:05:00Z');await sendCloudflareVerification(env,tomorrow,fetcher,tomorrow);assert.equal(sends,1);
+  const night=new Date('2026-10-10T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
 });
