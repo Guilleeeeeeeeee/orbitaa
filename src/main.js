@@ -6,7 +6,7 @@ import {createIcons, Globe2, Orbit, CalendarCheck2, ListTodo, BookOpen, ChartNoA
 import {createGlobe} from './globe.js';
 import {countVisitedPlaces,countVisitedCountries} from '../shared/summary.js';
 import {withConfirmedVisits,memoryPhotos} from '../shared/atlas-places.js';
-import {notificationSettings,updateNotificationSettings,notificationAction,showMoment,openMomentLink,synchronizeNotifications} from './notifications.js';
+import {notificationSettings,updateNotificationSettings,notificationAction,showMoment,openMomentLink,synchronizeNotifications,listenForMomentNotifications} from './notifications.js';
 import {widgetSettings,widgetAction} from './widgets.js';
 const iconMap={Globe2,Orbit,CalendarCheck2,ListTodo,BookOpen,ChartNoAxesCombined,Plus,X,Check,ChevronLeft,ChevronRight,ArrowUpRight,MapPin,Settings2,LocateFixed,Minus,Activity,Droplets,Moon,Footprints,Target,Trash2,LogOut,Download,LockKeyhole,RefreshCw,WifiOff,CircleHelp,Sparkles,Pencil,Flag,Dumbbell,BriefcaseBusiness,Sun,Smile,Waves,Cloud};
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -69,5 +69,6 @@ document.addEventListener('visibilitychange',async()=>{
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;});
 window.addEventListener('online',()=>{updateSync();toast('Conexión recuperada. Puedes actualizar tus datos desde Ajustes.');});window.addEventListener('offline',()=>{updateSync();toast('Sin conexión. Espera a recuperarla antes de guardar.');});
 if(tabs.some(t=>t[0]===location.hash.slice(1)))active=location.hash.slice(1);
+listenForMomentNotifications();
 if('serviceWorker'in navigator && import.meta.env.PROD)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 boot();

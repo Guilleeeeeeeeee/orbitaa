@@ -51,3 +51,21 @@ test('existing iPhone permission re-registers on the server before requesting th
   assert.equal(w.document.querySelector('#push-status').hidden,false);assert.match(w.document.querySelector('#push-status').textContent,/PUSH_PROVIDER_403/);
   dom.window.close();
 });
+
+test('notification clicks open the overlay in a running app without losing the current screen or form',async()=>{
+  const bundle=await build({entryPoints:['src/notifications.js'],bundle:true,write:false,format:'iife',globalName:'JP7Notifications'});
+  const dom=new JSDOM('<textarea id="draft">Texto sin guardar</textarea>',{url:'https://jp7.test/#journal',runScripts:'outside-only'}),w=dom.window;
+  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+  let listener,ack;
+  Object.defineProperty(w.navigator,'serviceWorker',{value:{addEventListener(type,fn){if(type==='message')listener=fn;}}});
+  w.eval(bundle.outputFiles[0].text);w.JP7Notifications.listenForMomentNotifications();
+  listener({data:{type:'JP7_OPEN_MOMENT',url:'https://evil.test/#2323-now'}});assert.equal(w.document.querySelector('#jp7-moment'),null);
+  listener({data:{type:'JP7_OPEN_MOMENT',url:'https://jp7.test/#2323-now'},ports:[{postMessage(value){ack=value;}}]});
+  assert.ok(w.document.querySelector('#jp7-moment').open);assert.equal(ack.opened,true);
+  assert.equal(w.location.hash,'#journal');assert.equal(w.document.querySelector('#draft').value,'Texto sin guardar');
+  assert.match(w.document.querySelector('.moment-countdown').textContent,/60 segundos/);
+  w.document.querySelector('.moment-close').click();
+  w.history.replaceState(null,'','#2323-now');w.dispatchEvent(new w.HashChangeEvent('hashchange'));
+  assert.ok(w.document.querySelector('#jp7-moment').open);
+  w.document.querySelector('.moment-close').click();dom.window.close();
+});

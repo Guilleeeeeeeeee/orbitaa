@@ -58,3 +58,16 @@ export function showMoment(preview=false,replay=false){
   if(seconds){const end=Date.now()+seconds*1000;const tick=()=>{const remaining=Math.max(0,Math.ceil((end-Date.now())/1000));overlay.querySelector('.moment-countdown').textContent=`${remaining} segundos ${preview?'· vista previa':replay?'':'hasta las 23:24'}`;if(!remaining)close();};tick();momentTimer=setInterval(tick,1000);}
 }
 export function openMomentLink(){if(['#2323','#2323-test','#2323-now'].includes(location.hash)){showMoment(location.hash.endsWith('-test'),location.hash==='#2323-now');history.replaceState(null,'','#world');}}
+
+let listeningForMoment=false;
+export function listenForMomentNotifications(){
+  if(listeningForMoment)return;listeningForMoment=true;
+  window.addEventListener('hashchange',openMomentLink);
+  navigator.serviceWorker?.addEventListener?.('message',event=>{
+    if(event.data?.type!=='JP7_OPEN_MOMENT')return;
+    let target;try{target=new URL(event.data.url,location.origin);}catch{return;}
+    if(target.origin!==location.origin||!['#2323','#2323-test','#2323-now'].includes(target.hash))return;
+    showMoment(target.hash==='#2323-test',target.hash==='#2323-now');
+    event.ports?.[0]?.postMessage({opened:true});
+  });
+}

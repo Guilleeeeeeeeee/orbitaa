@@ -12,7 +12,22 @@ self.addEventListener('notificationclick',event=>{
     let target=new URL(event.notification.data?.url||'/#2323',self.location.origin);
     if(target.origin!==self.location.origin)target=new URL('/#2323',self.location.origin);
     const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-    for(const client of windows){if(new URL(client.url).origin===target.origin){await client.navigate(target.href);await client.focus();return;}}
+    const candidates=windows.filter(client=>new URL(client.url).origin===target.origin);
+    candidates.sort((a,b)=>Number(b.focused)-Number(a.focused));
+    for(const client of candidates){
+      try{
+        await client.focus();
+        // Open the overlay in the existing app without replacing its current screen/form.
+        const handled=await new Promise(resolve=>{
+          const channel=new MessageChannel();
+          const timer=setTimeout(()=>{channel.port1.close();resolve(false);},1000);
+          channel.port1.onmessage=event=>{clearTimeout(timer);channel.port1.close();resolve(event.data?.opened===true);};
+          client.postMessage({type:'JP7_OPEN_MOMENT',url:target.href},[channel.port2]);
+        });
+        if(!handled){const navigated=await client.navigate(target.href);await (navigated||client).focus();}
+        return;
+      }catch{ /* Try another app window, then open the notification URL. */ }
+    }
     await self.clients.openWindow(target.href);
   })());
 });
