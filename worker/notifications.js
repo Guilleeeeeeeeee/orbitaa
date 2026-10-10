@@ -20,20 +20,20 @@ export async function getVapid(env){
   return JSON.parse(row.data);
 }
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
-export async function pushApi(request,env,fetcher=fetch){
-  try{await ensurePushTables(env);return await handlePushApi(request,env,fetcher);}
+export async function pushApi(request,env,fetcher=fetch,currentDate=new Date()){
+  try{await ensurePushTables(env);return await handlePushApi(request,env,fetcher,currentDate);}
   catch(error){
     console.error('JP7 push failed:',error.name);
     const database=/D1|SQLITE|no such table|database/i.test(error.message||'');
     return response({error:database?'No se ha podido preparar el guardado de notificaciones (PUSH_DATABASE).':'No se ha podido completar el envío de la notificación (PUSH_INTERNAL).',code:database?'PUSH_DATABASE':'PUSH_INTERNAL'},503);
   }
 }
-async function handlePushApi(request,env,fetcher){
+async function handlePushApi(request,env,fetcher,currentDate){
   const path=new URL(request.url).pathname;
   if(path==='/api/push/config'&&request.method==='GET')return response({publicKey:(await getVapid(env)).publicKey,time:'23:23',timezone:'Europe/Madrid'});
-  if(!['/api/push/subscribe','/api/push/test'].includes(path))return response({error:'No encontrado.'},404);
+  if(!['/api/push/subscribe','/api/push/test','/api/push/real-preview'].includes(path))return response({error:'No encontrado.'},404);
   if(!['POST','DELETE'].includes(request.method))return response({error:'Método no permitido.'},405);
-  if(path==='/api/push/test'&&request.method!=='POST')return response({error:'Método no permitido.'},405);
+  if(['/api/push/test','/api/push/real-preview'].includes(path)&&request.method!=='POST')return response({error:'Método no permitido.'},405);
   const raw=await request.text();if(raw.length>4096)return response({error:'Datos demasiado grandes.'},413);
   let body;try{body=JSON.parse(raw);}catch{return response({error:'Datos no válidos.'},400);}
   if(path==='/api/push/subscribe'&&request.method==='DELETE'){
@@ -48,6 +48,25 @@ async function handlePushApi(request,env,fetcher){
     const subscription={endpoint:body.endpoint,keys:{p256dh:body.keys.p256dh,auth:body.keys.auth}};
     await env.DB.prepare('INSERT INTO push_subscriptions (endpoint,data) VALUES (?,?) ON CONFLICT(endpoint) DO UPDATE SET data=excluded.data').bind(body.endpoint,JSON.stringify(subscription)).run();
     return response({ok:true});
+  }
+  if(path==='/api/push/real-preview'){
+    // The requested final look at the real alert, once per registered device today.
+    if(madridMoment(currentDate).day!=='2026-10-10')return response({ok:true,skipped:true});
+    const registered=await env.DB.prepare('SELECT data FROM push_subscriptions WHERE endpoint = ?').bind(body.endpoint).first();
+    if(!registered)return response({error:'Activa las notificaciones primero.'},404);
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_oneoffs (endpoint TEXT NOT NULL, delivery TEXT NOT NULL, PRIMARY KEY(endpoint,delivery))').run();
+    const delivery='final-2323-2026-10-10';
+    const claimed=await env.DB.prepare('INSERT OR IGNORE INTO push_oneoffs (endpoint,delivery) VALUES (?,?)').bind(body.endpoint,delivery).run();
+    if(!claimed.meta.changes)return response({ok:true,skipped:true});
+    try{
+      const payload={...notificationPayload(),url:SITE+'/#2323-now'};
+      const sent=await sendPush(JSON.parse(registered.data),await getVapid(env),payload,SITE,fetcher);
+      if(!sent.ok)throw Error('Push rejected');
+      return response({ok:true,sent:true});
+    }catch{
+      await env.DB.prepare('DELETE FROM push_oneoffs WHERE endpoint = ? AND delivery = ?').bind(body.endpoint,delivery).run();
+      return response({error:'No se ha podido enviar el aviso.'},502);
+    }
   }
   const now=Date.now();
   const claim=await env.DB.prepare('UPDATE push_subscriptions SET last_test = ? WHERE endpoint = ? AND last_test < ?').bind(now,body.endpoint,now-30000).run();
@@ -85,20 +104,5 @@ export async function sendDaily(env,date=new Date(),fetcher=fetch,currentDate=ne
   for(const row of results){
     const claimed=await env.DB.prepare('UPDATE push_subscriptions SET last_day = ? WHERE endpoint = ? AND last_day <> ?').bind(day,row.endpoint,day).run();if(!claimed.meta.changes)continue;
     try{const sent=await sendPush(JSON.parse(row.data),vapid,notificationPayload(),SITE,fetcher);if(sent.status===404||sent.status===410)await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(row.endpoint).run();else if(!sent.ok)console.error('JP7 daily push rejected:',sent.status);}catch{console.error('JP7 daily push delivery failed');}
-  }
-}
-
-// One-off preview requested for 9 October, 17:35 in Barcelona (15:35 UTC).
-// Uses the test timestamp, leaving the daily 23:23 delivery record untouched.
-export async function sendEveningPreview(env,date=new Date(),fetcher=fetch,currentDate=new Date()){
-  const target=Date.parse('2026-10-09T15:35:00Z');
-  if(date.getTime()<target||date.getTime()>=target+60000||currentDate.getTime()<target||currentDate.getTime()>=target+60000)return;
-  await ensurePushTables(env);
-  const {results}=await env.DB.prepare('SELECT endpoint,data FROM push_subscriptions WHERE last_test < ? LIMIT 20').bind(target).all();
-  if(!results.length)return;
-  const vapid=await getVapid(env),payload=notificationPayload(SITE,true);
-  for(const row of results){
-    const claimed=await env.DB.prepare('UPDATE push_subscriptions SET last_test = ? WHERE endpoint = ? AND last_test < ?').bind(currentDate.getTime(),row.endpoint,target).run();if(!claimed.meta.changes)continue;
-    try{const sent=await sendPush(JSON.parse(row.data),vapid,payload,SITE,fetcher);if(sent.status===404||sent.status===410)await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(row.endpoint).run();else if(!sent.ok)console.error('JP7 preview push rejected:',sent.status);}catch{console.error('JP7 preview push delivery failed');}
   }
 }

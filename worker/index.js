@@ -1,5 +1,5 @@
 import {withConfirmedVisits,memoryPhotos} from '../shared/atlas-places.js';
-import {pushApi,sendDaily,sendEveningPreview} from './notifications.js';
+import {pushApi,sendDaily} from './notifications.js';
 import {widgetApi,widgetToken} from './widgets.js';
 const encoder = new TextEncoder();
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
@@ -25,7 +25,7 @@ export function validState(s) {
     &&s.entries.every(x=>id(x)&&date(x.date)&&str(x.text,10000)&&x.text.trim().length>0&&['great','good','okay','low'].includes(x.mood));
 }
 export default {
-  async scheduled(controller,env) {const date=new Date(controller.scheduledTime);await sendEveningPreview(env,date);await sendDaily(env,date);},
+  async scheduled(controller,env) {const date=new Date(controller.scheduledTime);await sendDaily(env,date);},
   async fetch(request,env) {
     const url=new URL(request.url);
     if(!url.pathname.startsWith('/api/'))return env.ASSETS.fetch(request);

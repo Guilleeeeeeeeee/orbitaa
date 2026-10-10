@@ -4,7 +4,7 @@ import {createECDH,randomBytes,hkdfSync,createDecipheriv,createPublicKey,verify}
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {generateVapid,encryptPayload,sendPush,validSubscription,encode64} from '../worker/web-push.js';
-import {madridMoment,getVapid,sendDaily,pushApi,sendEveningPreview} from '../worker/notifications.js';
+import {madridMoment,getVapid,sendDaily,pushApi} from '../worker/notifications.js';
 import worker from '../worker/index.js';
 function receiver(){const key=createECDH('prime256v1');key.generateKeys();const auth=randomBytes(16);return {key,auth,subscription:{endpoint:'https://web.push.apple.com/test-endpoint',keys:{p256dh:encode64(key.getPublicKey()),auth:encode64(auth)}}};}
 function environment(){
@@ -60,14 +60,26 @@ test('devices opt in separately; duplicate jobs send once and expired subscripti
   await pushApi(request('POST',subscription),env);await pushApi(request('DELETE',{endpoint:subscription.endpoint}),env);assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
 });
 
-test('17:35 preview sends once on the requested date and preserves the nightly notification',async()=>{
-  const env=environment(),{subscription}=receiver();
+test('final real alert sends once per registered device, expires after today and keeps the nightly alert',async()=>{
+  const env=environment(),{subscription,key,auth}=receiver();
+  const request=()=>new Request('https://jp7.test/api/push/real-preview',{method:'POST',body:JSON.stringify(subscription)});
+  const time=new Date('2026-10-10T10:00:00Z');
+  assert.equal((await pushApi(request(),env,undefined,time)).status,404);
   await pushApi(new Request('https://jp7.test/api/push/subscribe',{method:'POST',body:JSON.stringify(subscription)}),env);
-  let sends=0;const fetcher=async()=>{sends++;return new Response(null,{status:201});};
-  const time=new Date('2026-10-09T15:35:00Z');
-  await sendEveningPreview(env,time,fetcher,time);await sendEveningPreview(env,time,fetcher,time);assert.equal(sends,1);
-  const tomorrow=new Date('2026-10-10T15:35:00Z');await sendEveningPreview(env,tomorrow,fetcher,tomorrow);assert.equal(sends,1);
-  const night=new Date('2026-10-09T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
+  let sends=0,payload;
+  const fetcher=async(url,options)=>{
+    sends++;
+    const packet=Buffer.from(options.body),salt=packet.subarray(0,16),sender=packet.subarray(21,86),shared=key.computeSecret(sender);
+    const input=hkdfSync('sha256',shared,auth,Buffer.concat([Buffer.from('WebPush: info\0'),key.getPublicKey(),sender]),32);
+    const cek=hkdfSync('sha256',input,salt,Buffer.from('Content-Encoding: aes128gcm\0'),16),nonce=hkdfSync('sha256',input,salt,Buffer.from('Content-Encoding: nonce\0'),12);
+    const ciphertext=packet.subarray(86),decipher=createDecipheriv('aes-128-gcm',cek,nonce);decipher.setAuthTag(ciphertext.subarray(-16));
+    const plain=Buffer.concat([decipher.update(ciphertext.subarray(0,-16)),decipher.final()]);payload=JSON.parse(plain.subarray(0,-1));
+    return new Response(null,{status:201});
+  };
+  await pushApi(request(),env,fetcher,time);await pushApi(request(),env,fetcher,time);assert.equal(sends,1);
+  assert.equal(payload.title,'SON LAS 23:23!!!');assert.equal(payload.body,'Toca para ver el cartel.');assert.equal(payload.test,false);assert.match(payload.url,/#2323-now$/);
+  await pushApi(request(),env,fetcher,new Date('2026-10-11T10:00:00Z'));assert.equal(sends,1);
+  const night=new Date('2026-10-10T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
 });
 
 test('missing push tables are created without changing personal state',async()=>{

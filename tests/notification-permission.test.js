@@ -22,3 +22,15 @@ test('installed iPhone can request permission while registration is missing, wit
   w.navigator.standalone=false;await notifications.updateNotificationSettings();assert.equal(button.disabled,true);assert.match(w.document.querySelector('#push-status').textContent,/pantalla de inicio/);
   dom.window.close();
 });
+
+test('the final notification link opens the full minute without a test label',async()=>{
+  const bundle=await build({entryPoints:['src/notifications.js'],bundle:true,write:false,format:'iife',globalName:'JP7Notifications'});
+  const dom=new JSDOM('',{url:'https://jp7.test/#2323-now',runScripts:'outside-only'}),w=dom.window;
+  w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+  w.eval(bundle.outputFiles[0].text);w.JP7Notifications.openMomentLink();
+  assert.ok(w.document.querySelector('#jp7-moment').open);
+  assert.equal(w.document.querySelector('.led-panel').getAttribute('aria-label'),'SON LAS 23:23!!!');
+  assert.match(w.document.querySelector('.moment-countdown').textContent,/60 segundos/);
+  assert.doesNotMatch(w.document.body.textContent,/VISTA PREVIA|vista previa|terminado/);
+  w.document.querySelector('.moment-close').click();dom.window.close();
+});
