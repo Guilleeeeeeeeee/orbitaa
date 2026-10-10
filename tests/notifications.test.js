@@ -4,7 +4,7 @@ import {createECDH,randomBytes,hkdfSync,createDecipheriv,createPublicKey,verify}
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {generateVapid,encryptPayload,sendPush,validSubscription,encode64} from '../worker/web-push.js';
-import {madridMoment,getVapid,sendDaily,pushApi} from '../worker/notifications.js';
+import {madridMoment,getVapid,sendDaily,sendFinalScheduled,pushApi} from '../worker/notifications.js';
 import worker from '../worker/index.js';
 function receiver(){const key=createECDH('prime256v1');key.generateKeys();const auth=randomBytes(16);return {key,auth,subscription:{endpoint:'https://web.push.apple.com/test-endpoint',keys:{p256dh:encode64(key.getPublicKey()),auth:encode64(auth)}}};}
 function environment(){
@@ -60,11 +60,11 @@ test('devices opt in separately; duplicate jobs send once and expired subscripti
   await pushApi(request('POST',subscription),env);await pushApi(request('DELETE',{endpoint:subscription.endpoint}),env);assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
 });
 
-test('final real alert sends once per registered device, expires after today and keeps the nightly alert',async()=>{
+test('scheduled real alert waits until 12:19, sends once, expires and keeps the nightly alert',async()=>{
   const env=environment(),{subscription,key,auth}=receiver();
   const request=()=>new Request('https://jp7.test/api/push/real-preview',{method:'POST',body:JSON.stringify(subscription)});
   const time=new Date('2026-10-10T10:00:00Z');
-  assert.equal((await pushApi(request(),env,undefined,time)).status,404);
+  assert.equal((await pushApi(request(),env,undefined,time)).status,200);
   await pushApi(new Request('https://jp7.test/api/push/subscribe',{method:'POST',body:JSON.stringify(subscription)}),env);
   let sends=0,payload;
   const fetcher=async(url,options)=>{
@@ -76,9 +76,12 @@ test('final real alert sends once per registered device, expires after today and
     const plain=Buffer.concat([decipher.update(ciphertext.subarray(0,-16)),decipher.final()]);payload=JSON.parse(plain.subarray(0,-1));
     return new Response(null,{status:201});
   };
-  await pushApi(request(),env,fetcher,time);await pushApi(request(),env,fetcher,time);assert.equal(sends,1);
+  await pushApi(request(),env,fetcher,time);assert.equal(sends,0);
+  await sendFinalScheduled(env,time,fetcher,time);assert.equal(sends,0);
+  const due=new Date('2026-10-10T10:19:00Z');
+  await sendFinalScheduled(env,due,fetcher,due);await sendFinalScheduled(env,due,fetcher,due);assert.equal(sends,1);
   assert.equal(payload.title,'SON LAS 23:23!!!');assert.equal(payload.body,'Toca para ver el cartel.');assert.equal(payload.test,false);assert.match(payload.url,/#2323-now$/);
-  await pushApi(request(),env,fetcher,new Date('2026-10-11T10:00:00Z'));assert.equal(sends,1);
+  const tomorrow=new Date('2026-10-11T10:19:00Z');await sendFinalScheduled(env,tomorrow,fetcher,tomorrow);assert.equal(sends,1);
   const night=new Date('2026-10-10T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
 });
 
@@ -121,4 +124,17 @@ test('signing and encryption failures are identified before any network request'
   const encryption=await pushApi(req(invalid),env,fetcher);
   const data=await encryption.json();assert.equal(data.code,'PUSH_ENCRYPTION');assert.equal(calls,0);
   assert.doesNotMatch(JSON.stringify(data),/test-endpoint|privateKey|p256dh/);
+});
+
+test('scheduled alert retries rejected sends, skips expired devices and never changes nightly deduplication',async()=>{
+  const env=environment(),{subscription}=receiver();
+  await pushApi(new Request('https://jp7.test/api/push/subscribe',{method:'POST',body:JSON.stringify(subscription)}),env);
+  const due=new Date('2026-10-10T10:19:00Z');let sends=0;
+  const fetcher=async()=>new Response(null,{status:++sends===1?503:201});
+  await sendFinalScheduled(env,due,fetcher,due);await sendFinalScheduled(env,due,fetcher,due);await sendFinalScheduled(env,due,fetcher,due);assert.equal(sends,2);
+  assert.equal((await env.DB.prepare('SELECT last_day FROM push_subscriptions').first()).last_day,'');
+  await env.DB.prepare('DELETE FROM push_oneoffs').run();
+  await sendFinalScheduled(env,due,fetcher,new Date('2026-10-10T11:00:00Z'));assert.equal(sends,2);
+  await sendFinalScheduled(env,due,async()=>new Response(null,{status:410}),due);
+  assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
 });

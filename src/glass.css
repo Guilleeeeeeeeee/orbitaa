@@ -394,7 +394,7 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 
   .welcome-orb, .login-mark img { animation: none; }
 }
 /* The OS owns push banners; this preview and the opened moment belong to JP7. */
-.moment-settings{position:relative;overflow:hidden;border:1px solid #ff57ab35!important;background:radial-gradient(ellipse at 100% 0%,#fd319019,transparent 70%)}
+.moment-settings{display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden;border:1px solid #ff57ab35!important;background:radial-gradient(ellipse at 100% 0%,#fd319019,transparent 70%)}
 .moment-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#ff79b9;margin-bottom:16px}
 .moment-heading>span{font-size:10px;letter-spacing:.17em;font-weight:700}.moment-heading>b{font-size:26px;letter-spacing:-.06em}
 .notification-preview{display:flex;gap:12px;padding:15px;border:1px solid #ffffff19;border-radius:20px;background:linear-gradient(125deg,#ffffff12,#ffffff05);box-shadow:0 10px 30px #ff389010;margin:16px 0}

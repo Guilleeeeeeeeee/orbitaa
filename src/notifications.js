@@ -4,14 +4,6 @@ const installed=()=>window.matchMedia?.('(display-mode: standalone)').matches||n
 let subscription=null,working=false;
 export function notificationSettings(demo=false){return `<div class="settings-section moment-settings"><button class="button primary" data-action="push-enable" aria-pressed="false" disabled>Permitir notificaciones</button><p class="push-status" id="push-status" role="status" hidden>${demo?'Activa el aviso desde tu espacio privado.':'Comprobando este dispositivo…'}</p></div>`;}
 function controls(message,enabled=false,available=false,showError=false){const status=document.querySelector('#push-status');if(!status)return;status.textContent=message;status.hidden=!showError&&(available||!message);const toggle=document.querySelector('[data-action="push-enable"]');toggle.textContent=enabled?'✓ Permitir notificaciones':'Permitir notificaciones';toggle.setAttribute('aria-pressed',String(enabled));toggle.disabled=!available||working;}
-export async function deliverFinalPreview(){
-  if(ios()&&!installed()||window.Notification?.permission!=='granted'||!navigator.serviceWorker)return;
-  try{
-    const registration=await navigator.serviceWorker.getRegistration();
-    const current=await registration?.pushManager?.getSubscription();
-    if(current)await api('real-preview',{method:'POST',body:JSON.stringify(current.toJSON())});
-  }catch{ /* The normal nightly subscription stays active even if this one-off cannot be delivered. */ }
-}
 export async function updateNotificationSettings(demo=false){
   if(demo)return;
   if(ios()&&!installed()){controls('En iPhone: añade JP7 a la pantalla de inicio y ábrela desde su icono para activar el aviso.');return;}
@@ -38,7 +30,6 @@ export async function notificationAction(action){
     subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
     try{await api('subscribe',{method:'POST',body:JSON.stringify(subscription.toJSON())});}catch(error){await subscription.unsubscribe();subscription=null;throw error;}
     controls('Aviso activado · cada noche a las 23:23.',true,true);
-    await deliverFinalPreview();
   }catch(error){controls(error.message,!!subscription,true,true);}
   finally{working=false;const toggle=document.querySelector('[data-action="push-enable"]');if(toggle)toggle.disabled=window.Notification?.permission==='denied';}
 }

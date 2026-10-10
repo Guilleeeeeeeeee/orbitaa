@@ -49,25 +49,8 @@ async function handlePushApi(request,env,fetcher,currentDate){
     await env.DB.prepare('INSERT INTO push_subscriptions (endpoint,data) VALUES (?,?) ON CONFLICT(endpoint) DO UPDATE SET data=excluded.data').bind(body.endpoint,JSON.stringify(subscription)).run();
     return response({ok:true});
   }
-  if(path==='/api/push/real-preview'){
-    // The requested final look at the real alert, once per registered device today.
-    if(madridMoment(currentDate).day!=='2026-10-10')return response({ok:true,skipped:true});
-    const registered=await env.DB.prepare('SELECT data FROM push_subscriptions WHERE endpoint = ?').bind(body.endpoint).first();
-    if(!registered)return response({error:'Activa las notificaciones primero.'},404);
-    await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_oneoffs (endpoint TEXT NOT NULL, delivery TEXT NOT NULL, PRIMARY KEY(endpoint,delivery))').run();
-    const delivery='final-2323-2026-10-10';
-    const claimed=await env.DB.prepare('INSERT OR IGNORE INTO push_oneoffs (endpoint,delivery) VALUES (?,?)').bind(body.endpoint,delivery).run();
-    if(!claimed.meta.changes)return response({ok:true,skipped:true});
-    try{
-      const payload={...notificationPayload(),url:SITE+'/#2323-now'};
-      const sent=await sendPush(JSON.parse(registered.data),await getVapid(env),payload,SITE,fetcher);
-      if(!sent.ok)throw Error('Push rejected');
-      return response({ok:true,sent:true});
-    }catch{
-      await env.DB.prepare('DELETE FROM push_oneoffs WHERE endpoint = ? AND delivery = ?').bind(body.endpoint,delivery).run();
-      return response({error:'No se ha podido enviar el aviso.'},502);
-    }
-  }
+  // Retire the old app-open preview, including requests from cached clients.
+  if(path==='/api/push/real-preview')return response({ok:true,skipped:true});
   const now=Date.now();
   const claim=await env.DB.prepare('UPDATE push_subscriptions SET last_test = ? WHERE endpoint = ? AND last_test < ?').bind(now,body.endpoint,now-30000).run();
   if(!claim.meta.changes)return response({error:'Activa el aviso primero y espera 30 segundos entre pruebas.'},429);
@@ -104,5 +87,28 @@ export async function sendDaily(env,date=new Date(),fetcher=fetch,currentDate=ne
   for(const row of results){
     const claimed=await env.DB.prepare('UPDATE push_subscriptions SET last_day = ? WHERE endpoint = ? AND last_day <> ?').bind(day,row.endpoint,day).run();if(!claimed.meta.changes)continue;
     try{const sent=await sendPush(JSON.parse(row.data),vapid,notificationPayload(),SITE,fetcher);if(sent.status===404||sent.status===410)await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(row.endpoint).run();else if(!sent.ok)console.error('JP7 daily push rejected:',sent.status);}catch{console.error('JP7 daily push delivery failed');}
+  }
+}
+
+export async function sendFinalScheduled(env,date=new Date(),fetcher=fetch,currentDate=new Date()){
+  // One real alert on 10 October at 12:19 Madrid. The window allows cron propagation/retries.
+  const due=Date.parse('2026-10-10T10:19:00Z'),expires=Date.parse('2026-10-10T11:00:00Z');
+  if(date.getTime()<due||date.getTime()>=expires||currentDate.getTime()<due||currentDate.getTime()>=expires)return;
+  await ensurePushTables(env);
+  const {results}=await env.DB.prepare('SELECT endpoint,data FROM push_subscriptions LIMIT 20').all();
+  if(!results.length)return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_oneoffs (endpoint TEXT NOT NULL, delivery TEXT NOT NULL, PRIMARY KEY(endpoint,delivery))').run();
+  const delivery='scheduled-2323-2026-10-10-1219',vapid=await getVapid(env);
+  for(const row of results){
+    const claimed=await env.DB.prepare('INSERT OR IGNORE INTO push_oneoffs (endpoint,delivery) VALUES (?,?)').bind(row.endpoint,delivery).run();
+    if(!claimed.meta.changes)continue;
+    try{
+      const sent=await sendPush(JSON.parse(row.data),vapid,{...notificationPayload(),url:SITE+'/#2323-now'},SITE,fetcher);
+      if(sent.status===404||sent.status===410)await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(row.endpoint).run();
+      else if(!sent.ok)throw Error('Push rejected');
+    }catch{
+      await env.DB.prepare('DELETE FROM push_oneoffs WHERE endpoint = ? AND delivery = ?').bind(row.endpoint,delivery).run();
+      console.error('JP7 scheduled alert delivery failed');
+    }
   }
 }
