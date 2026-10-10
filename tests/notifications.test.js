@@ -138,3 +138,23 @@ test('scheduled alert retries rejected sends, skips expired devices and never ch
   await sendFinalScheduled(env,due,async()=>new Response(null,{status:410}),due);
   assert.equal((await env.DB.prepare('SELECT COUNT(*) AS count FROM push_subscriptions').first()).count,0);
 });
+
+test('app-open fallback repairs a missing registration and shares deduplication with the cron',async()=>{
+  const env=environment(),{subscription}=receiver(),due=new Date('2026-10-10T10:30:00Z');
+  const req=path=>new Request('https://jp7.test/api/push/'+path,{method:'POST',body:JSON.stringify(subscription)});
+  let sends=0;const fetcher=async()=>{sends++;return new Response(null,{status:201});};
+  assert.equal((await pushApi(req('real-preview'),env,fetcher,due)).status,404);
+  await pushApi(req('subscribe'),env);
+  assert.equal((await(await pushApi(req('real-preview'),env,fetcher,due)).json()).sent,true);
+  await sendFinalScheduled(env,due,fetcher,due);await pushApi(req('real-preview'),env,fetcher,due);assert.equal(sends,1);
+  const night=new Date('2026-10-10T21:23:00Z');await sendDaily(env,night,fetcher,night);assert.equal(sends,2);
+});
+test('app-open fallback exposes delivery errors without marking failed alerts as sent',async()=>{
+  const env=environment(),{subscription}=receiver(),due=new Date('2026-10-10T10:30:00Z');
+  const req=path=>new Request('https://jp7.test/api/push/'+path,{method:'POST',body:JSON.stringify(subscription)});
+  await pushApi(req('subscribe'),env);
+  const failed=await pushApi(req('real-preview'),env,async()=>new Response(null,{status:403}),due);
+  assert.equal(failed.status,502);assert.equal((await failed.json()).code,'PUSH_PROVIDER_403');
+  const retry=await pushApi(req('real-preview'),env,async()=>new Response(null,{status:201}),due);
+  assert.equal((await retry.json()).sent,true);
+});

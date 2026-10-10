@@ -34,3 +34,20 @@ test('the final notification link opens the full minute without a test label',as
   assert.doesNotMatch(w.document.body.textContent,/VISTA PREVIA|vista previa|terminado/);
   w.document.querySelector('.moment-close').click();dom.window.close();
 });
+
+test('existing iPhone permission re-registers on the server before requesting the real alert',async()=>{
+  const bundle=await build({entryPoints:['src/notifications.js'],bundle:true,write:false,format:'iife',globalName:'JP7Notifications'});
+  const dom=new JSDOM('<div id="settings"></div>',{url:'https://jp7.test',runScripts:'outside-only'}),w=dom.window;
+  Object.defineProperty(w.navigator,'userAgent',{value:'iPhone'});w.navigator.standalone=true;w.Notification={permission:'granted'};
+  const current={toJSON:()=>({endpoint:'device'})};
+  Object.defineProperty(w.navigator,'serviceWorker',{value:{getRegistration:async()=>({pushManager:{getSubscription:async()=>current}})}});
+  const calls=[];let reject=false;
+  w.fetch=async(url,options)=>{calls.push(url);return {ok:!reject,json:async()=>reject?{error:'No se ha podido entregar el aviso (PUSH_PROVIDER_403).'}:{ok:true}};};
+  w.eval(bundle.outputFiles[0].text);const n=w.JP7Notifications;
+  w.document.querySelector('#settings').innerHTML=n.notificationSettings();
+  await n.updateNotificationSettings();assert.deepEqual(calls,['/api/push/subscribe','/api/push/real-preview']);
+  assert.equal(w.document.querySelector('#push-status').hidden,true);
+  reject=true;await n.updateNotificationSettings();
+  assert.equal(w.document.querySelector('#push-status').hidden,false);assert.match(w.document.querySelector('#push-status').textContent,/PUSH_PROVIDER_403/);
+  dom.window.close();
+});

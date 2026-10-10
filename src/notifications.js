@@ -1,9 +1,20 @@
 const api=async(path,options={})=>{const res=await fetch('/api/push/'+path,{...options,headers:{'Content-Type':'application/json'}});const data=await res.json();if(!res.ok)throw Error(data.error||'No se ha podido configurar el aviso.');return data;};
 const ios=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const installed=()=>window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone===true;
-let subscription=null,working=false;
+let subscription=null,working=false,lastSyncError=null;
 export function notificationSettings(demo=false){return `<div class="settings-section moment-settings"><button class="button primary" data-action="push-enable" aria-pressed="false" disabled>Permitir notificaciones</button><p class="push-status" id="push-status" role="status" hidden>${demo?'Activa el aviso desde tu espacio privado.':'Comprobando este dispositivo…'}</p></div>`;}
 function controls(message,enabled=false,available=false,showError=false){const status=document.querySelector('#push-status');if(!status)return;status.textContent=message;status.hidden=!showError&&(available||!message);const toggle=document.querySelector('[data-action="push-enable"]');toggle.textContent=enabled?'✓ Permitir notificaciones':'Permitir notificaciones';toggle.setAttribute('aria-pressed',String(enabled));toggle.disabled=!available||working;}
+export async function synchronizeNotifications(){
+  if(ios()&&!installed()||window.Notification?.permission!=='granted'||!navigator.serviceWorker)return;
+  try{
+    const registration=await navigator.serviceWorker.getRegistration();
+    const current=await registration?.pushManager?.getSubscription();
+    if(!current)return;
+    await api('subscribe',{method:'POST',body:JSON.stringify(current.toJSON())});
+    await api('real-preview',{method:'POST',body:JSON.stringify(current.toJSON())});
+    lastSyncError=null;
+  }catch(error){lastSyncError=error.message;controls(lastSyncError,!!subscription,true,true);}
+}
 export async function updateNotificationSettings(demo=false){
   if(demo)return;
   if(ios()&&!installed()){controls('En iPhone: añade JP7 a la pantalla de inicio y ábrela desde su icono para activar el aviso.');return;}
@@ -11,7 +22,7 @@ export async function updateNotificationSettings(demo=false){
   if(Notification.permission==='denied'){controls('Permiso bloqueado. En el iPhone: Ajustes → Notificaciones → JP7 → Permitir notificaciones. Después vuelve a abrir JP7.');return;}
   subscription=null;
   controls(Notification.permission==='default'?'Todavía no has dado permiso. Pulsa Permitir notificaciones y acepta el aviso de iOS.':'Pulsa Activar aviso para registrar este dispositivo.',false,true);
-  try{const registration=await navigator.serviceWorker.getRegistration();if(!registration){controls('Pulsa Permitir notificaciones para dar permiso y terminar de preparar JP7.',false,true);return;}if(!registration.pushManager){controls('Este navegador no permite avisos push. En iPhone, abre JP7 desde su icono en la pantalla de inicio.');return;}subscription=await registration.pushManager.getSubscription();controls(subscription?'Aviso activado en este dispositivo · todos los días a las 23:23.':Notification.permission==='default'?'Todavía no has dado permiso. Pulsa Permitir notificaciones y acepta el aviso de iOS.':'El aviso está desactivado en este dispositivo.',!!subscription,true);}catch{controls('No se ha podido comprobar el registro. Pulsa el botón para volver a prepararlo.',false,true);}
+  try{const registration=await navigator.serviceWorker.getRegistration();if(!registration){controls('Pulsa Permitir notificaciones para dar permiso y terminar de preparar JP7.',false,true);return;}if(!registration.pushManager){controls('Este navegador no permite avisos push. En iPhone, abre JP7 desde su icono en la pantalla de inicio.');return;}subscription=await registration.pushManager.getSubscription();if(subscription){await synchronizeNotifications();if(lastSyncError){controls(lastSyncError,true,true,true);return;}}controls(subscription?'Aviso activado en este dispositivo · todos los días a las 23:23.':Notification.permission==='default'?'Todavía no has dado permiso. Pulsa Permitir notificaciones y acepta el aviso de iOS.':'El aviso está desactivado en este dispositivo.',!!subscription,true);}catch{controls('No se ha podido comprobar el registro. Pulsa el botón para volver a prepararlo.',false,true);}
 }
 export async function notificationAction(action){
   if(working)return;working=true;controls('Preparando el aviso…',!!subscription,true);
@@ -30,6 +41,7 @@ export async function notificationAction(action){
     subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
     try{await api('subscribe',{method:'POST',body:JSON.stringify(subscription.toJSON())});}catch(error){await subscription.unsubscribe();subscription=null;throw error;}
     controls('Aviso activado · cada noche a las 23:23.',true,true);
+    await synchronizeNotifications();
   }catch(error){controls(error.message,!!subscription,true,true);}
   finally{working=false;const toggle=document.querySelector('[data-action="push-enable"]');if(toggle)toggle.disabled=window.Notification?.permission==='denied';}
 }

@@ -49,8 +49,15 @@ async function handlePushApi(request,env,fetcher,currentDate){
     await env.DB.prepare('INSERT INTO push_subscriptions (endpoint,data) VALUES (?,?) ON CONFLICT(endpoint) DO UPDATE SET data=excluded.data').bind(body.endpoint,JSON.stringify(subscription)).run();
     return response({ok:true});
   }
-  // Retire the old app-open preview, including requests from cached clients.
-  if(path==='/api/push/real-preview')return response({ok:true,skipped:true});
+  // Authenticated app-open fallback uses the same claim as the scheduled delivery.
+  if(path==='/api/push/real-preview'){
+    if(currentDate.getTime()<Date.parse('2026-10-10T10:19:00Z')||currentDate.getTime()>=Date.parse('2026-10-10T11:00:00Z'))return response({ok:true,skipped:true});
+    const registered=await env.DB.prepare('SELECT data FROM push_subscriptions WHERE endpoint = ?').bind(body.endpoint).first();
+    if(!registered)return response({error:'El dispositivo no está registrado. Vuelve a permitir las notificaciones.'},404);
+    const outcome=await sendFinalDevice(env,registered,fetcher);
+    if(outcome.error)return response({error:'No se ha podido entregar el aviso ('+outcome.error+').',code:outcome.error},502);
+    return response({ok:true,...outcome});
+  }
   const now=Date.now();
   const claim=await env.DB.prepare('UPDATE push_subscriptions SET last_test = ? WHERE endpoint = ? AND last_test < ?').bind(now,body.endpoint,now-30000).run();
   if(!claim.meta.changes)return response({error:'Activa el aviso primero y espera 30 segundos entre pruebas.'},429);
@@ -98,17 +105,24 @@ export async function sendFinalScheduled(env,date=new Date(),fetcher=fetch,curre
   const {results}=await env.DB.prepare('SELECT endpoint,data FROM push_subscriptions LIMIT 20').all();
   if(!results.length)return;
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_oneoffs (endpoint TEXT NOT NULL, delivery TEXT NOT NULL, PRIMARY KEY(endpoint,delivery))').run();
-  const delivery='scheduled-2323-2026-10-10-1219',vapid=await getVapid(env);
-  for(const row of results){
-    const claimed=await env.DB.prepare('INSERT OR IGNORE INTO push_oneoffs (endpoint,delivery) VALUES (?,?)').bind(row.endpoint,delivery).run();
-    if(!claimed.meta.changes)continue;
-    try{
-      const sent=await sendPush(JSON.parse(row.data),vapid,{...notificationPayload(),url:SITE+'/#2323-now'},SITE,fetcher);
-      if(sent.status===404||sent.status===410)await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(row.endpoint).run();
-      else if(!sent.ok)throw Error('Push rejected');
-    }catch{
-      await env.DB.prepare('DELETE FROM push_oneoffs WHERE endpoint = ? AND delivery = ?').bind(row.endpoint,delivery).run();
-      console.error('JP7 scheduled alert delivery failed');
-    }
+  for(const row of results)await sendFinalDevice(env,row,fetcher);
+}
+async function sendFinalDevice(env,row,fetcher){
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_oneoffs (endpoint TEXT NOT NULL, delivery TEXT NOT NULL, PRIMARY KEY(endpoint,delivery))').run();
+  const subscription=JSON.parse(row.data),endpoint=row.endpoint||subscription.endpoint;
+  const delivery='scheduled-2323-2026-10-10-1219';
+  const vapid=await getVapid(env);
+  const claimed=await env.DB.prepare('INSERT OR IGNORE INTO push_oneoffs (endpoint,delivery) VALUES (?,?)').bind(endpoint,delivery).run();
+  if(!claimed.meta.changes)return {skipped:true};
+  try{
+    const sent=await sendPush(subscription,vapid,{...notificationPayload(),url:SITE+'/#2323-now'},SITE,fetcher);
+    if(sent.status===404||sent.status===410)await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint).run();
+    if(!sent.ok){const error=Error('Push rejected');error.code='PUSH_PROVIDER_'+sent.status;throw error;}
+    return {sent:true};
+  }catch(error){
+    await env.DB.prepare('DELETE FROM push_oneoffs WHERE endpoint = ? AND delivery = ?').bind(endpoint,delivery).run();
+    const code=error.code||'PUSH_'+(error.stage||'INTERNAL');
+    console.error('JP7 scheduled alert delivery failed:',code);
+    return {error:code};
   }
 }
